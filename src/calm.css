@@ -1,0 +1,35 @@
+/*
+ * Steady reduced-motion ruleset (readable reference copy).
+ *
+ * The authoritative copy is the CALM_CSS string constant in src/lib.js, which is
+ * what actually gets injected at document_start. This file is kept identical for
+ * readability and is loaded by test/harness.html. If you change one, change both.
+ *
+ * CRITICAL: never use `animation: none` or `transition: none`. Content that
+ * animates into view would stay invisible. Instead we force animations and
+ * transitions to complete instantly and hold their end state.
+ */
+
+*, *::before, *::after {
+  animation-duration: 0.001ms !important;
+  animation-delay: 0ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  transition-delay: 0ms !important;
+}
+
+html, body { scroll-behavior: auto !important; }
+* { scroll-behavior: auto !important; }
+
+/* Best-effort parallax: a fixed background is a very common pure-CSS parallax
+   effect. Pin it to the page so it stops drifting on scroll. */
+*, *::before, *::after { background-attachment: scroll !important; }
+
+/* Common JS-parallax hooks: neutralize transforms only on these opt-in markers,
+   never globally (that would break sticky headers and legit transformed
+   layouts). */
+[data-parallax], .parallax, [data-rellax], [data-paroller-factor],
+[data-parallax-speed], [data-stellar-ratio] {
+  transform: none !important;
+  translate: none !important;
+}
