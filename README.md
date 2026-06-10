@@ -93,6 +93,10 @@ data is your global toggle and the list of sites you have allowed motion on, in
 ## Development
 
 - Run unit tests: `node --test`
+- Run end-to-end checks (needs Google Chrome installed): `node tools/e2e.mjs`. This
+  launches headless Chrome twice (baseline and with Steady loaded over the DevTools
+  protocol), drives the harness page, and asserts every core behavior, including the
+  live on/off restore path. No dependencies beyond Node and Chrome.
 - Regenerate icons: `node tools/gen-icons.mjs`
 - Regenerate the test GIF: `node tools/gen-test-gif.mjs`
 - Manual testing: open `test/harness.html` (it exercises animations, autoplay video and
