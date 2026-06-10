@@ -43,6 +43,23 @@ test('CALM_CSS forces instant completion and NEVER uses animation/transition: no
   assert.match(css, /background-attachment:\s*scroll\s*!important/);
 });
 
+test('animatedImageKind distinguishes gif from webp', () => {
+  assert.equal(lib.animatedImageKind('https://x/a.gif'), 'gif');
+  assert.equal(lib.animatedImageKind('https://x/a.GIF?v=2'), 'gif');
+  assert.equal(lib.animatedImageKind('https://x/a.webp'), 'webp');
+  assert.equal(lib.animatedImageKind('data:image/gif;base64,AAAA'), 'gif');
+  assert.equal(lib.animatedImageKind('data:image/webp;base64,AAAA'), 'webp');
+  assert.equal(lib.animatedImageKind('https://x/a.png'), null);
+  assert.equal(lib.animatedImageKind(''), null);
+});
+
+test('src/calm.css stays in sync with CALM_CSS (rules identical ignoring comments/whitespace)', async () => {
+  const { readFileSync } = await import('node:fs');
+  const cssFile = readFileSync(new URL('../src/calm.css', import.meta.url), 'utf8');
+  const normalize = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\s+/g, ' ').trim();
+  assert.equal(normalize(cssFile), normalize(lib.CALM_CSS));
+});
+
 test('isAnimatedImageUrl matches gif/webp regardless of query/case', () => {
   assert.equal(lib.isAnimatedImageUrl('https://x/y/a.GIF'), true);
   assert.equal(lib.isAnimatedImageUrl('https://x/y/a.webp?123'), true);

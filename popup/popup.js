@@ -24,8 +24,8 @@ var els = {
 
 var state = {
   settings: DEFAULT_SETTINGS,
-  host: '',          // normalized hostname of the active tab
-  supported: false   // false for chrome://, extension pages, etc.
+  host: '',           // normalized hostname of the active tab (http/https only)
+  kind: 'unsupported' // 'site' (http/https), 'file' (calmed, no per-site key), 'unsupported'
 };
 
 function getActiveTab() {
@@ -44,13 +44,18 @@ function getSettings() {
   });
 }
 
-function hostFromUrl(url) {
+function pageInfoFromUrl(url) {
   try {
     var u = new URL(url);
-    if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
-    return u.hostname;
+    if (u.protocol === 'http:' || u.protocol === 'https:') {
+      return { kind: 'site', host: u.hostname };
+    }
+    // The content script also runs on file:// pages (when the user has enabled
+    // file access), but exceptions are keyed by hostname, which files lack.
+    if (u.protocol === 'file:') return { kind: 'file', host: '' };
+    return { kind: 'unsupported', host: '' };
   } catch (e) {
-    return null;
+    return { kind: 'unsupported', host: '' };
   }
 }
 
@@ -76,9 +81,19 @@ function render() {
 
   setSwitch(els.global, enabled);
 
-  if (!state.supported) {
+  if (state.kind === 'unsupported') {
     els.status.textContent = 'Steady cannot adjust this page.';
     els.siteRow.hidden = true;
+    els.note.hidden = true;
+    return;
+  }
+
+  if (state.kind === 'file') {
+    els.status.textContent = enabled
+      ? 'Calming motion on this local file.'
+      : 'Steady is off everywhere.';
+    els.siteRow.hidden = true; // exceptions are per-hostname; files have none
+    els.note.hidden = true;
     return;
   }
 
@@ -93,12 +108,13 @@ function render() {
     els.status.textContent = 'Steady is off everywhere.';
     els.note.hidden = false;
     els.note.textContent = 'Turn Steady on to calm motion, then you can allow specific sites.';
-  } else if (allowed) {
-    els.status.textContent = 'Motion is allowed on ' + state.host + '.';
-    els.note.hidden = true;
+    els.site.setAttribute('aria-describedby', 'note');
   } else {
-    els.status.textContent = 'Calming motion on ' + state.host + '.';
+    els.site.removeAttribute('aria-describedby');
     els.note.hidden = true;
+    els.status.textContent = allowed
+      ? 'Motion is allowed on ' + state.host + '.'
+      : 'Calming motion on ' + state.host + '.';
   }
 }
 
@@ -118,7 +134,7 @@ function toggleGlobal() {
 }
 
 function toggleSite() {
-  if (state.settings.enabled === false || !state.supported) return; // disabled
+  if (state.settings.enabled === false || state.kind !== 'site') return; // disabled
   var allowed = state.settings.allowed || {};
   if (allowed[state.host]) {
     delete allowed[state.host];
@@ -135,9 +151,9 @@ els.site.addEventListener('click', toggleSite);
 
 async function init() {
   var tab = await getActiveTab();
-  var rawHost = tab && tab.url ? hostFromUrl(tab.url) : null;
-  state.supported = !!rawHost;
-  state.host = normalizeHost(rawHost || '');
+  var info = tab && tab.url ? pageInfoFromUrl(tab.url) : { kind: 'unsupported', host: '' };
+  state.kind = info.kind;
+  state.host = normalizeHost(info.host);
   state.settings = await getSettings();
   render();
 }

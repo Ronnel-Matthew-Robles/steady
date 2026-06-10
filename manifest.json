@@ -1,10 +1,10 @@
 {
   "manifest_version": 3,
-  "name": "Steady — Reduce Motion & Calm the Web",
+  "name": "Steady: Reduce Motion & Calm the Web",
   "short_name": "Steady",
   "version": "1.0.0",
   "description": "Forcibly reduces motion and sensory overload on every website, while keeping pages fully interactive.",
-  "permissions": ["storage", "activeTab", "scripting"],
+  "permissions": ["storage", "activeTab"],
   "action": {
     "default_popup": "popup/popup.html",
     "default_title": "Steady",

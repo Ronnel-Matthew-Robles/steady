@@ -54,14 +54,23 @@ function isEffectivelyCalm(settings, host) {
 }
 
 // Heuristic: does this URL look like an animated raster image we should freeze?
-// GIF and animated WebP are the common cases. Extension-based check keeps this
-// pure (no decoding); content.js verifies on the live element before acting.
-function isAnimatedImageUrl(url) {
-  if (!url) return false;
+// Returns 'gif', 'webp', or null. GIFs are nearly always animated, so they are
+// frozen on sight; .webp is usually static, so content.js sniffs the file's
+// VP8X animation flag before rasterizing. Extension-less animated images (CDN
+// proxies and the like) are not detected; documented limitation.
+function animatedImageKind(url) {
+  if (!url) return null;
   var u = String(url).toLowerCase();
-  if (u.indexOf('data:image/gif') === 0 || u.indexOf('data:image/webp') === 0) return true;
+  if (u.indexOf('data:image/gif') === 0) return 'gif';
+  if (u.indexOf('data:image/webp') === 0) return 'webp';
   var path = u.split('?')[0].split('#')[0];
-  return path.endsWith('.gif') || path.endsWith('.webp');
+  if (path.endsWith('.gif')) return 'gif';
+  if (path.endsWith('.webp')) return 'webp';
+  return null;
+}
+
+function isAnimatedImageUrl(url) {
+  return animatedImageKind(url) !== null;
 }
 
 if (typeof module !== 'undefined' && module.exports) {
@@ -70,6 +79,7 @@ if (typeof module !== 'undefined' && module.exports) {
     CALM_CSS: CALM_CSS,
     normalizeHost: normalizeHost,
     isEffectivelyCalm: isEffectivelyCalm,
+    animatedImageKind: animatedImageKind,
     isAnimatedImageUrl: isAnimatedImageUrl
   };
 }

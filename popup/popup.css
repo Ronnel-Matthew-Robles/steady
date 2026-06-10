@@ -105,7 +105,9 @@ html, body {
   width: 44px;
   height: 26px;
   background: var(--track-off);
-  border: 1px solid var(--line);
+  /* darker than --line so the off-state control boundary meets WCAG 1.4.11
+     (>= 3:1 non-text contrast against the white panel) */
+  border: 1px solid #7e8a93;
   border-radius: 999px;
   flex: none;
 }

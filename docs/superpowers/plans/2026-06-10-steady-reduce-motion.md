@@ -1,4 +1,4 @@
-# Steady — Reduce Motion & Calm the Web Implementation Plan
+# Steady: Reduce Motion & Calm the Web Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -6,7 +6,7 @@
 
 **Architecture:** Vanilla JS, no build step. A `document_start` content script synchronously injects a reduced-motion stylesheet (calm-by-default), then reads `chrome.storage.local` to remove it on per-site exceptions or when globally off. The same content script pauses autoplaying media, freezes animated GIF/WebP to their first frame, and conservatively neutralizes parallax, re-applying to late content via a MutationObserver. A service worker shows first-run onboarding and a per-tab badge. An accessible popup controls the global toggle and per-site exceptions.
 
-**Tech Stack:** Chrome Extensions MV3, vanilla HTML/CSS/JS, `chrome.storage.local`, `chrome.scripting`/`action` APIs, Node 24 `node:test` for pure-logic unit tests, pure-Node zlib PNG generator for icons.
+**Tech Stack:** Chrome Extensions MV3, vanilla HTML/CSS/JS, `chrome.storage.local`, `chrome.action` API, Node 24 `node:test` for pure-logic unit tests, pure-Node zlib PNG generator for icons.
 
 ---
 
@@ -38,11 +38,11 @@
 ```json
 {
   "manifest_version": 3,
-  "name": "Steady — Reduce Motion & Calm the Web",
+  "name": "Steady: Reduce Motion & Calm the Web",
   "short_name": "Steady",
   "version": "1.0.0",
   "description": "Forcibly reduces motion and sensory overload on every website, while keeping pages fully interactive.",
-  "permissions": ["storage", "activeTab", "scripting"],
+  "permissions": ["storage", "activeTab"],
   "action": {
     "default_popup": "popup/popup.html",
     "default_title": "Steady",
@@ -76,7 +76,7 @@ Calm, minimal mark: a soft steady-blue/slate radial backdrop with a centered hor
 - [ ] **Step 3:** Sanity-check each PNG begins with the PNG signature bytes and is non-empty.
 - [ ] **Step 4:** Commit icons + generator.
 
-## Task 3: Pure shared library (`src/lib.js`) — TDD
+## Task 3: Pure shared library (`src/lib.js`), TDD
 
 **Files:** Create `src/lib.js`, `test/lib.test.mjs`, `src/calm.css`.
 

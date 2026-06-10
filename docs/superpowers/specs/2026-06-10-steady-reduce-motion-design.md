@@ -1,4 +1,4 @@
-# Steady — Reduce Motion & Calm the Web (Design)
+# Steady: Reduce Motion & Calm the Web (Design)
 
 Date: 2026-06-10
 Status: Approved (spec authored by user; technical decisions confirmed)
@@ -28,7 +28,7 @@ Vanilla JS, no build step (simpler to audit, maintain, and open-source).
 
 | File | Role |
 |------|------|
-| `manifest.json` | MV3 manifest. Content script on `<all_urls>`, `run_at: document_start`, `all_frames: true`. Permissions: `storage`, `activeTab`, `scripting`. |
+| `manifest.json` | MV3 manifest. Content script on `<all_urls>`, `run_at: document_start`, `all_frames: true`. Permissions: `storage`, `activeTab`. |
 | `src/calm.css` | Readable reference copy of the reduced-motion ruleset, used by the test harness. The authoritative ruleset is also embedded as a string constant in `src/content.js` so injection at `document_start` is synchronous (no async `fetch`). The two are kept identical. |
 | `src/content.js` | Orchestrator: synchronously inject calm `<style>` at document_start; async-read settings and remove it if site is excepted/off; pause autoplaying media; freeze animated GIF/WebP; neutralize parallax; MutationObserver for late content; react to `storage.onChanged`. |
 | `src/background.js` | Service worker. `onInstalled` → open onboarding tab. Per-tab badge/title reflecting on/off state. |
@@ -47,11 +47,11 @@ Vanilla JS, no build step (simpler to audit, maintain, and open-source).
 { "enabled": true, "allowed": { "example.com": true } }
 ```
 
-- `enabled` — global toggle, default `true`.
-- `allowed` — map of hostnames the user has chosen to *allow motion* on (per-site exception).
+- `enabled`: global toggle, default `true`.
+- `allowed`: map of hostnames the user has chosen to *allow motion* on (per-site exception).
 - Effective-calm for a page = `enabled && !allowed[hostname]`.
 - Keyed by full `location.hostname`.
-- Live updates via `chrome.storage.onChanged` — toggling applies/removes calming without
+- Live updates via `chrome.storage.onChanged`; toggling applies/removes calming without
   a page reload.
 
 ## Feature mechanics
@@ -123,8 +123,8 @@ every site, and how to allow motion per-site.
 ## No-flash injection strategy
 
 The content script (at `document_start`) synchronously inserts a `<style>` as the first
-child of `documentElement` **before** reading storage — calm-by-default, effectively no
-flash. It then async-reads settings and removes the `<style>` only if the site is
+child of `documentElement` **before** reading storage (calm-by-default, effectively no
+flash). It then async-reads settings and removes the `<style>` only if the site is
 excepted or globally off. Failure mode is safe (calm). JS injection (not manifest `css`)
 is used so the stylesheet can be cleanly toggled per-site.
 
@@ -140,5 +140,32 @@ Photosensitive-flash detection, color softening, ad/clutter hiding, sync, paymen
 
 ## Polish
 
-Name "Steady"; Web Store title "Steady — Reduce Motion & Calm the Web". Calm, minimal
+Name "Steady"; Web Store title "Steady: Reduce Motion & Calm the Web". Calm, minimal
 icon (no alarming reds; soft steady visual language). MIT LICENSE + clear README.
+
+## Post-review amendments (2026-06-10)
+
+A multi-agent adversarial review confirmed 16 findings; the implementation diverges
+from the original design in these ways:
+
+1. Dropped the unused `scripting` permission (least privilege).
+2. Media/image mutations are gated until settings resolve (state machine:
+   pending/calm/inactive), so excepted sites never get irreversibly frozen by the
+   calm-by-default race. CSS stays eager since it is fully reversible.
+3. Turning calming off (per-site or globally) now restores frozen images and resumes
+   paused media live, not just on the next load. Originals are stashed in data
+   attributes.
+4. Per-site exceptions are keyed by the TOP page's hostname in every frame. The top
+   frame registers its host with the service worker (chrome.storage.session); subframes
+   query it and fall back to their own host.
+5. The `userInteracted` one-shot latch was replaced with a rolling gesture window
+   (1s after a trusted pointerdown/keydown/touchstart). Playback starting inside the
+   window is marked user-played per element and never touched again; autoplay starting
+   any time outside it is paused, even late in the page's life.
+6. `.webp` is only rasterized after sniffing the VP8X animation flag, since most WebP
+   on the web is static; unreadable bytes (no CORS) freeze anyway, favoring motion
+   safety. GIFs freeze on sight.
+7. `srcset` mutations (img and picture>source) are observed for lazy-loaded swaps.
+8. Badge semantics: a small "off" badge appears only when Steady is NOT calming the
+   page; the clean icon is the everyday working state.
+9. Web Store title uses a colon, not a dash.

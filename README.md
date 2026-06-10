@@ -1,4 +1,4 @@
-# Steady — Reduce Motion & Calm the Web
+# Steady: Reduce Motion & Calm the Web
 
 Steady is a Manifest V3 Chrome extension that forcibly reduces motion and sensory
 overload on every website, while keeping pages fully interactive. It is built for people
@@ -52,14 +52,15 @@ Click the **Steady** toolbar icon to open the popup:
 - **Allow motion on this site**: a per-site exception. Turn it on to let a specific site
   animate normally. The choice is remembered.
 
-The toolbar tooltip shows the current page's status (calming, motion allowed here, or off).
-Toggling takes effect immediately for CSS effects. Media and GIF changes apply on the next
-page load.
+The toolbar tooltip shows the current page's status (calming, motion allowed here, or off),
+and a small "off" badge appears on the icon whenever Steady is not calming the page.
+Toggling takes effect immediately: calming CSS is added or removed, frozen GIFs are
+restored, and media that Steady paused is resumed (best effort), all without a reload.
 
 ## How it works
 
 - `manifest.json` registers a content script on `<all_urls>` at `document_start` in all
-  frames, with only the `storage`, `activeTab`, and `scripting` permissions.
+  frames, with only the `storage` and `activeTab` permissions.
 - `src/lib.js` holds the pure logic and the reduced-motion ruleset (`CALM_CSS`).
 - `src/content.js` injects the stylesheet, pauses media, freezes images, and watches for
   late content with a `MutationObserver`.
@@ -74,8 +75,12 @@ page load.
 - **JavaScript transform-on-scroll parallax** is only partially handled. Steady
   deliberately does not reset every inline transform, because that would break sticky
   headers and legitimate transformed layouts.
-- **Per-site exceptions are keyed by the frame's own hostname.** A cross-origin embed (for
-  example a video iframe) is evaluated by the embed's host, not the top-level site.
+- **Animated images are detected by URL.** GIFs are frozen on sight; `.webp` files are
+  checked for the animation flag first so static ones are left untouched. Animated images
+  served from extension-less URLs (some CDN image proxies) are not detected.
+- **Per-site exceptions follow the top page.** Frames inside a page ask Steady for the top
+  page's hostname and follow its setting; in rare early-load races a frame may briefly fall
+  back to its own host.
 - Pages on `chrome://`, the Web Store, and other restricted URLs cannot be modified by any
   extension.
 
