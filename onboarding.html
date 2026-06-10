@@ -37,6 +37,28 @@
       font-size: 15px;
     }
     strong { color: #3a6ea5; }
+    h2 { font-size: 17px; margin: 22px 0 8px; }
+    .try {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      font-size: 15px;
+    }
+    .try li {
+      padding: 9px 0;
+      border-top: 1px solid #e3e9ee;
+    }
+    .try a {
+      color: #14467a;
+      font-weight: 600;
+      text-decoration: underline;
+    }
+    .try a:focus-visible {
+      outline: 3px solid #14467a;
+      outline-offset: 2px;
+      border-radius: 3px;
+    }
+    .try span { color: #46545f; }
   </style>
 </head>
 <body>
@@ -53,6 +75,22 @@
       <strong>Steady</strong> icon in your toolbar, and turn on
       <strong>Allow motion on this site</strong>.
     </p>
+
+    <h2>See it working right now</h2>
+    <ul class="try">
+      <li>
+        <a href="https://michalsnik.github.io/aos/" target="_blank" rel="noopener">Scroll-reveal demo</a><span>: content appears instantly instead of sliding in as you scroll.</span>
+      </li>
+      <li>
+        <a href="https://animate.style/" target="_blank" rel="noopener">CSS animation gallery</a><span>: click any effect and it snaps to its finished state, no motion.</span>
+      </li>
+      <li>
+        <a href="https://www.w3schools.com/howto/howto_css_parallax.asp" target="_blank" rel="noopener">Parallax demo</a><span>: the background scrolls with the page instead of floating.</span>
+      </li>
+      <li>
+        <a href="https://en.wikipedia.org/wiki/GIF" target="_blank" rel="noopener">Animated GIFs on Wikipedia</a><span>: every GIF holds still on its first frame.</span>
+      </li>
+    </ul>
   </main>
 </body>
 </html>

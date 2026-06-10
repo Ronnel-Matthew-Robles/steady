@@ -75,6 +75,10 @@ restored, and media that Steady paused is resumed (best effort), all without a r
 - **JavaScript transform-on-scroll parallax** is only partially handled. Steady
   deliberately does not reset every inline transform, because that would break sticky
   headers and legitimate transformed layouts.
+- **Scroll-driven scrubbing and canvas animation** are out of reach. Some product pages
+  (apple.com is the best-known example) step a paused video's timeline or draw an image
+  sequence to a canvas as you scroll. That motion is not playback, so there is nothing to
+  pause, and suppressing it would hide the page's actual content.
 - **Animated images are detected by URL.** GIFs are frozen on sight; `.webp` files are
   checked for the animation flag first so static ones are left untouched. Animated images
   served from extension-less URLs (some CDN image proxies) are not detected.
