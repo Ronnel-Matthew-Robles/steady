@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Steady</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <main class="panel" role="main">
+    <header class="head">
+      <h1 class="title">Steady</h1>
+      <p class="tagline">Reduce motion and calm the web</p>
+    </header>
+
+    <p id="status" class="status" role="status" aria-live="polite">Checking this page&hellip;</p>
+
+    <div class="row">
+      <div class="row-text">
+        <span class="row-label" id="global-label">Steady</span>
+        <span class="row-help">Calm motion on every site</span>
+      </div>
+      <button id="global-toggle" type="button" role="switch" aria-checked="true"
+              aria-labelledby="global-label" class="switch">
+        <span class="switch-track" aria-hidden="true"><span class="switch-thumb"></span></span>
+        <span class="switch-state" aria-hidden="true">On</span>
+      </button>
+    </div>
+
+    <div class="row" id="site-row">
+      <div class="row-text">
+        <span class="row-label" id="site-label">Allow motion on this site</span>
+        <span class="row-help" id="site-host">&nbsp;</span>
+      </div>
+      <button id="site-toggle" type="button" role="switch" aria-checked="false"
+              aria-labelledby="site-label site-host" class="switch">
+        <span class="switch-track" aria-hidden="true"><span class="switch-thumb"></span></span>
+        <span class="switch-state" aria-hidden="true">Off</span>
+      </button>
+    </div>
+
+    <p id="note" class="note" hidden></p>
+  </main>
+  <script src="popup.js"></script>
+</body>
+</html>

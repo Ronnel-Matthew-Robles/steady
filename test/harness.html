@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Steady test harness</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+      color: #1f2933;
+      margin: 0;
+      line-height: 1.5;
+    }
+    .wrap { max-width: 760px; margin: 0 auto; padding: 24px; }
+    section { border: 1px solid #d3dae0; border-radius: 10px; padding: 18px; margin: 22px 0; }
+    h1 { font-size: 24px; }
+    h2 { font-size: 18px; margin-top: 0; }
+    .state { font-weight: 700; }
+    .ok { color: #2e7d32; }
+    .motion { color: #b06a00; }
+    .spacer { height: 90vh; display: flex; align-items: center; justify-content: center; color: #8a97a1; }
+
+    /* 1. CSS animation + transition */
+    .spinner {
+      width: 48px; height: 48px; border: 6px solid #d3dae0; border-top-color: #3a6ea5;
+      border-radius: 50%; animation: spin 1s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .slide { background: #eef2f5; padding: 10px; border-radius: 8px; transition: transform 1.5s ease; }
+    .slide.go { transform: translateX(180px); }
+
+    /* 4. reveal-on-scroll: starts invisible, must become visible under Steady */
+    .reveal { opacity: 0; transform: translateY(24px); transition: opacity 1.2s ease, transform 1.2s ease; }
+    .reveal.shown { opacity: 1; transform: none; }
+    .reveal-anim { opacity: 0; }
+    .reveal-anim.shown { animation: fadeUp 1.2s ease forwards; }
+    @keyframes fadeUp { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: none; } }
+
+    /* 5. fixed-background parallax */
+    .parallax {
+      height: 300px; border-radius: 10px;
+      background-image: linear-gradient(135deg, #3a6ea5, #52606e);
+      background-attachment: fixed; background-size: cover;
+      color: #fff; display: flex; align-items: center; justify-content: center; font-size: 20px;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Steady test harness</h1>
+    <p>
+      Load this page twice: once with Steady off (baseline motion), once with Steady on.
+      The status lines below update live so you can confirm what Steady changed. Confirm
+      you can still scroll, click the button, and type in the field throughout.
+    </p>
+
+    <section>
+      <h2>1. CSS animation &amp; transition</h2>
+      <p>With Steady on, the spinner should hold still and the box should sit at its end position (no visible sweep).</p>
+      <div class="spinner" aria-hidden="true"></div>
+      <p><button id="slide-btn" type="button">Toggle slide transition</button></p>
+      <div class="slide" id="slide">I move with a 1.5s transition.</div>
+    </section>
+
+    <section>
+      <h2>2. Autoplaying video (canvas-backed, offline)</h2>
+      <p>Video paused by Steady: <span class="state" id="video-state">checking</span></p>
+      <video id="video" autoplay loop muted playsinline width="240" height="135" style="border-radius:8px;background:#000"></video>
+    </section>
+
+    <section>
+      <h2>3. Autoplaying audio (offline tone)</h2>
+      <p>Audio paused by Steady: <span class="state" id="audio-state">checking</span></p>
+      <audio id="audio" autoplay loop controls></audio>
+    </section>
+
+    <section>
+      <h2>4. Animated GIF freeze</h2>
+      <p>With Steady on, the sliding block should freeze on its first frame (block at far left).</p>
+      <img id="gif" src="animated.gif" width="96" height="96" alt="sliding block animation" style="image-rendering:pixelated;border:1px solid #d3dae0">
+      <p>GIF frozen by Steady: <span class="state" id="gif-state">checking</span></p>
+    </section>
+
+    <section>
+      <h2>6. Interactivity check</h2>
+      <p>Type here, then click: <input id="field" type="text" placeholder="type something"> <button id="echo-btn" type="button">Echo</button></p>
+      <p id="echo"></p>
+    </section>
+
+    <div class="spacer">Scroll down to trigger reveal-on-scroll &darr;</div>
+
+    <section>
+      <h2>5. Fixed-background parallax</h2>
+      <div class="parallax">Background should stop drifting under Steady</div>
+    </section>
+
+    <section>
+      <h2>4b. Reveal-on-scroll (must still appear)</h2>
+      <p class="reveal" id="reveal1">Revealed via CSS transition. Under Steady this must be fully visible.</p>
+      <p class="reveal-anim" id="reveal2">Revealed via CSS animation. Under Steady this must be fully visible.</p>
+    </section>
+
+    <div class="spacer">&nbsp;</div>
+  </div>
+
+  <script>
+    // --- 1. slide transition toggle ---
+    var slide = document.getElementById('slide');
+    document.getElementById('slide-btn').addEventListener('click', function () {
+      slide.classList.toggle('go');
+    });
+
+    // --- 2. autoplay video from an animated canvas (fully offline) ---
+    (function () {
+      var c = document.createElement('canvas');
+      c.width = 240; c.height = 135;
+      var ctx = c.getContext('2d');
+      var t = 0;
+      function draw() {
+        t += 0.06;
+        ctx.fillStyle = '#3a6ea5';
+        ctx.fillRect(0, 0, c.width, c.height);
+        ctx.fillStyle = '#eef2f5';
+        var x = c.width / 2 + 80 * Math.sin(t);
+        ctx.beginPath();
+        ctx.arc(x, c.height / 2, 22, 0, Math.PI * 2);
+        ctx.fill();
+        requestAnimationFrame(draw);
+      }
+      draw();
+      var video = document.getElementById('video');
+      try {
+        video.srcObject = c.captureStream(30);
+        video.play().catch(function () {});
+      } catch (e) { /* captureStream unsupported */ }
+    })();
+
+    // --- 3. autoplay audio from a generated quiet WAV (offline) ---
+    (function () {
+      var sampleRate = 8000, seconds = 1, n = sampleRate * seconds;
+      var bytes = 44 + n * 2;
+      var buf = new ArrayBuffer(bytes);
+      var dv = new DataView(buf);
+      function str(off, s) { for (var i = 0; i < s.length; i++) dv.setUint8(off + i, s.charCodeAt(i)); }
+      str(0, 'RIFF'); dv.setUint32(4, bytes - 8, true); str(8, 'WAVE');
+      str(12, 'fmt '); dv.setUint32(16, 16, true); dv.setUint16(20, 1, true);
+      dv.setUint16(22, 1, true); dv.setUint32(24, sampleRate, true);
+      dv.setUint32(28, sampleRate * 2, true); dv.setUint16(32, 2, true); dv.setUint16(34, 16, true);
+      str(36, 'data'); dv.setUint32(40, n * 2, true);
+      for (var i = 0; i < n; i++) {
+        var v = Math.sin(i / 12) * 1200; // quiet tone
+        dv.setInt16(44 + i * 2, v, true);
+      }
+      var b64 = btoa(String.fromCharCode.apply(null, new Uint8Array(buf)));
+      var audio = document.getElementById('audio');
+      audio.src = 'data:audio/wav;base64,' + b64;
+      audio.volume = 0.2;
+    })();
+
+    // --- 4. reveal-on-scroll ---
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) { if (e.isIntersecting) e.target.classList.add('shown'); });
+    });
+    io.observe(document.getElementById('reveal1'));
+    io.observe(document.getElementById('reveal2'));
+
+    // --- 6. interactivity echo ---
+    document.getElementById('echo-btn').addEventListener('click', function () {
+      document.getElementById('echo').textContent = 'You typed: ' + document.getElementById('field').value;
+    });
+
+    // --- live status readouts ---
+    function setState(id, paused) {
+      var el = document.getElementById(id);
+      el.textContent = paused ? 'yes (paused)' : 'no (playing)';
+      el.className = 'state ' + (paused ? 'ok' : 'motion');
+    }
+    var gifImg = document.getElementById('gif');
+    setInterval(function () {
+      setState('video-state', document.getElementById('video').paused);
+      setState('audio-state', document.getElementById('audio').paused);
+      var frozen = gifImg.src.indexOf('data:image/png') === 0;
+      var g = document.getElementById('gif-state');
+      g.textContent = frozen ? 'yes (first frame held)' : 'no (still animated source)';
+      g.className = 'state ' + (frozen ? 'ok' : 'motion');
+    }, 700);
+  </script>
+</body>
+</html>

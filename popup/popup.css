@@ -1,0 +1,155 @@
+/* Steady popup. Accessible by design:
+   - no animations or transitions anywhere
+   - strong visible focus, high contrast, >= 14px text
+   - real <button role="switch"> controls (native keyboard support) */
+
+*, *::before, *::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  animation: none !important;
+  transition: none !important;
+}
+
+:root {
+  --bg: #f4f6f8;
+  --panel: #ffffff;
+  --ink: #1f2933;
+  --ink-soft: #46545f;
+  --line: #d3dae0;
+  --accent: #3a6ea5;   /* calm steady blue, never red */
+  --track-off: #b9c2ca;
+  --thumb: #ffffff;
+  --focus: #14467a;
+}
+
+html, body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+.panel {
+  width: 300px;
+  padding: 16px 16px 14px;
+}
+
+.head { margin-bottom: 12px; }
+
+.title {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+}
+
+.tagline {
+  font-size: 14px;
+  color: var(--ink-soft);
+}
+
+.status {
+  font-size: 14px;
+  color: var(--ink);
+  background: #eef2f5;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin-bottom: 14px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+}
+
+.row-text { display: flex; flex-direction: column; }
+
+.row-label {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.row-help {
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+
+/* Switch control */
+.switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 8px;
+  color: var(--ink);
+  font: inherit;
+}
+
+.switch:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.switch-track {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 26px;
+  background: var(--track-off);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  flex: none;
+}
+
+.switch-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  background: var(--thumb);
+  border-radius: 50%;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.switch[aria-checked="true"] .switch-track { background: var(--accent); }
+.switch[aria-checked="true"] .switch-thumb { left: 20px; }
+
+.switch-state {
+  font-size: 14px;
+  font-weight: 600;
+  min-width: 24px;
+  text-align: right;
+  color: var(--ink-soft);
+}
+
+.switch[aria-checked="true"] .switch-state { color: var(--accent); }
+
+.switch[aria-disabled="true"] {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.note {
+  margin-top: 10px;
+  font-size: 13px;
+  color: var(--ink-soft);
+  background: #eef2f5;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+/* Respect users who set a high-contrast OS preference */
+@media (prefers-contrast: more) {
+  :root { --line: #5b6770; --ink-soft: #2a363f; }
+}
