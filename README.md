@@ -122,6 +122,7 @@ data is your global toggle and the list of sites you have allowed motion on, in
   live on/off restore path. No dependencies beyond Node and Chrome.
 - Regenerate icons: `node tools/gen-icons.mjs`
 - Regenerate the test GIF: `node tools/gen-test-gif.mjs`
+- Regenerate the onboarding demo assets: `node tools/gen-onboarding-gif.mjs`
 - Manual testing: open `test/harness.html` (it exercises animations, autoplay video and
   audio, an animated GIF, fixed-background parallax, and reveal-on-scroll content, with
   live status readouts). Also test on a heavy-parallax marketing site, an autoplay-video

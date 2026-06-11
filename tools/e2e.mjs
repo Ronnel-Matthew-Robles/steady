@@ -217,6 +217,32 @@ async function runScenario(loadExtension, port) {
         const backOn = await cdp.eval(page, SNAPSHOT);
         const onMotion = await motionSample();
         toggle = { off, backOn, offMotion, onMotion };
+
+        // Onboarding live proof: the demo GIF must mirror the real setting,
+        // the page itself must run zero animations, and its switch must flip
+        // the actual stored setting.
+        const { targetId: obId } = await cdp.send('Target.createTarget',
+          { url: `chrome-extension://${extId}/onboarding.html` });
+        const ob = await cdp.attach(obId);
+        await cdp.send('Page.bringToFront', {}, ob);
+        await sleep(1200);
+        const OB = `({
+          frozen: document.getElementById('demo-gif').src.indexOf('onboarding-still.png') !== -1,
+          live: document.getElementById('demo-gif').src.indexOf('onboarding.gif') !== -1,
+          hidden: document.getElementById('demo-gif').hidden,
+          status: document.getElementById('proof-status').textContent,
+          anims: document.getAnimations().length,
+        })`;
+        const obOn = await cdp.eval(ob, OB);
+        await cdp.eval(ob, "document.getElementById('global-toggle').click()");
+        await sleep(700);
+        const obOff = await cdp.eval(ob, OB);
+        const storedAfterClick = await cdp.eval(swSession,
+          'new Promise(r => chrome.storage.local.get({ enabled: true }, s => r(s.enabled)))');
+        await cdp.eval(ob, "document.getElementById('global-toggle').click()");
+        await sleep(700);
+        const obBack = await cdp.eval(ob, OB);
+        toggle.onboarding = { obOn, obOff, obBack, storedAfterClick };
       }
     }
     return { top, bottom, toggle, motion, caroDelta };
@@ -281,6 +307,19 @@ try {
     check('toggle on: spinner still again', !ext.toggle.onMotion.spinnerMoving, ext.toggle.onMotion.got);
     check('toggle on: WAAPI box still again', !ext.toggle.onMotion.waapiMoving, ext.toggle.onMotion.got);
     check('toggle on: gif re-frozen', ext.toggle.backOn.gifSrc.startsWith('data:image/png'), ext.toggle.backOn.gifSrc);
+    const onb = ext.toggle.onboarding;
+    if (onb) {
+      check('onboarding: page itself runs zero animations', onb.obOn.anims === 0, onb.obOn.anims);
+      check('onboarding: proof GIF frozen and visible while on',
+        onb.obOn.frozen && !onb.obOn.hidden, JSON.stringify(onb.obOn));
+      check('onboarding: status announces calm', /steady is on/i.test(onb.obOn.status), onb.obOn.status);
+      check('onboarding: switch flips the REAL stored setting', onb.storedAfterClick === false, onb.storedAfterClick);
+      check('onboarding off: GIF wakes up + status updates',
+        onb.obOff.live && /off/i.test(onb.obOff.status), JSON.stringify(onb.obOff));
+      check('onboarding: re-frozen after switching back on', onb.obBack.frozen, JSON.stringify(onb.obBack));
+    } else {
+      check('onboarding: page reachable', false, 'onboarding target not created');
+    }
   } else {
     check('toggle: service worker reachable', false, 'service worker target not found');
   }

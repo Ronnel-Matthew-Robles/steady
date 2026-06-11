@@ -5,92 +5,373 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Welcome to Steady</title>
   <style>
-    *, *::before, *::after { animation: none !important; transition: none !important; box-sizing: border-box; }
+    /* Steady onboarding. The aesthetic IS the product: a page so still it
+       feels printed. No animations, no transitions, anywhere, ever. */
+
+    *, *::before, *::after {
+      box-sizing: border-box;
+      animation: none !important;
+      transition: none !important;
+    }
+
+    :root {
+      --paper: #f4f6f8;
+      --card: #ffffff;
+      --ink: #1f2933;
+      --ink-soft: #46545f;
+      --line: #d3dae0;
+      --hair: #e3e9ee;
+      --accent: #3a6ea5;
+      --focus: #14467a;
+      --track-off: #b9c2ca;
+      --serif: Georgia, 'Iowan Old Style', 'Palatino Linotype', 'Book Antiqua', serif;
+      --sans: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
     html, body {
       margin: 0;
-      min-height: 100vh;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: var(--sans);
+      font-size: 17px;
+      line-height: 1.6;
+    }
+
+    a { color: var(--focus); }
+    a:focus-visible, button:focus-visible {
+      outline: 3px solid var(--focus);
+      outline-offset: 2px;
+      border-radius: 4px;
+    }
+
+    .page {
+      max-width: 660px;
+      margin: 0 auto;
+      padding: 44px 24px 72px;
+    }
+
+    /* Masthead */
+    .masthead {
       display: flex;
       align-items: center;
-      justify-content: center;
-      background: #eef2f5;
-      color: #1f2933;
-      font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      font-size: 16px;
-      line-height: 1.55;
+      gap: 12px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid var(--line);
     }
-    .card {
-      max-width: 520px;
-      margin: 24px;
-      padding: 32px 36px;
-      background: #ffffff;
-      border: 1px solid #d3dae0;
-      border-radius: 14px;
+    .masthead svg { display: block; }
+    .wordmark {
+      font-family: var(--serif);
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: 0.3px;
     }
-    h1 { font-size: 26px; margin: 0 0 6px; }
-    .sub { color: #46545f; font-size: 16px; margin: 0 0 18px; }
-    p { margin: 0 0 14px; }
-    .how {
-      background: #f4f6f8;
-      border: 1px solid #d3dae0;
-      border-radius: 10px;
-      padding: 14px 16px;
-      font-size: 15px;
+    .masthead .ed {
+      margin-left: auto;
+      font-size: 14px;
+      color: var(--ink-soft);
     }
-    strong { color: #3a6ea5; }
-    h2 { font-size: 17px; margin: 22px 0 8px; }
-    .try {
-      list-style: none;
-      margin: 0;
-      padding: 0;
-      font-size: 15px;
-    }
-    .try li {
-      padding: 9px 0;
-      border-top: 1px solid #e3e9ee;
-    }
-    .try a {
-      color: #14467a;
+
+    /* Kicker labels: small caps with a trailing hairline, like a magazine */
+    .kicker {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin: 56px 0 14px;
+      font-size: 14px;
       font-weight: 600;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--ink-soft);
+    }
+    .kicker::after {
+      content: "";
+      flex: 1;
+      height: 1px;
+      background: var(--line);
+    }
+
+    h1 {
+      font-family: var(--serif);
+      font-size: clamp(38px, 7vw, 54px);
+      line-height: 1.06;
+      letter-spacing: -0.5px;
+      margin: 10px 0 18px;
+      font-weight: 700;
+    }
+    h2 {
+      font-family: var(--serif);
+      font-size: 27px;
+      line-height: 1.2;
+      margin: 0 0 10px;
+      font-weight: 700;
+    }
+    .lead {
+      font-size: 18px;
+      color: var(--ink-soft);
+      margin: 0;
+      max-width: 56ch;
+    }
+    .lead strong { color: var(--ink); }
+
+    /* Proof card */
+    .proof {
+      margin-top: 18px;
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 26px 28px 22px;
+    }
+    .proof-stage {
+      background: var(--paper);
+      border: 1px solid var(--hair);
+      border-radius: 10px;
+      padding: 22px 0;
+      text-align: center;
+    }
+    .proof-stage img {
+      display: inline-block;
+      width: 240px;
+      height: 144px;
+      image-rendering: pixelated;
+    }
+    /* author display rules must never defeat the hidden attribute, or a
+       broken-image icon flashes before the script decides what to show */
+    .proof-stage img[hidden] { display: none !important; }
+    .proof-status {
+      margin: 16px 0 0;
+      font-size: 16px;
+      font-weight: 600;
+    }
+    .proof-foot {
+      margin: 6px 0 0;
+      font-size: 14px;
+      color: var(--ink-soft);
+    }
+    .switch-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      margin-top: 18px;
+      padding-top: 18px;
+      border-top: 1px solid var(--hair);
+    }
+    .switch-text { display: flex; flex-direction: column; }
+    .switch-label { font-weight: 600; font-size: 16px; }
+    .switch-help { font-size: 14px; color: var(--ink-soft); }
+
+    .switch {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 4px;
+      border-radius: 8px;
+      color: var(--ink);
+      font: inherit;
+    }
+    .switch-track {
+      position: relative;
+      display: inline-block;
+      width: 48px;
+      height: 28px;
+      background: var(--track-off);
+      border: 1px solid #7e8a93;
+      border-radius: 999px;
+      flex: none;
+    }
+    .switch-thumb {
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 22px;
+      height: 22px;
+      background: #fff;
+      border-radius: 50%;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+    }
+    .switch[aria-checked="true"] .switch-track { background: var(--accent); }
+    .switch[aria-checked="true"] .switch-thumb { left: 22px; }
+    .switch-state {
+      font-size: 15px;
+      font-weight: 700;
+      min-width: 26px;
+      text-align: right;
+      color: var(--ink-soft);
+    }
+    .switch[aria-checked="true"] .switch-state { color: var(--accent); }
+
+    /* Field-test list */
+    .sites { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; }
+    .site {
+      display: block;
+      text-decoration: none;
+      color: inherit;
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 14px 18px;
+    }
+    .site:hover { border-color: var(--accent); }
+    .site-name {
+      font-family: var(--serif);
+      font-weight: 700;
+      font-size: 18px;
+      color: var(--focus);
       text-decoration: underline;
+      text-underline-offset: 3px;
     }
-    .try a:focus-visible {
-      outline: 3px solid #14467a;
-      outline-offset: 2px;
-      border-radius: 3px;
+    .site-name::after { content: " \2197"; text-decoration: none; }
+    .site-what {
+      display: block;
+      margin-top: 2px;
+      font-size: 15px;
+      color: var(--ink-soft);
     }
-    .try span { color: #46545f; }
+
+    /* Controls primer */
+    .controls { display: flex; flex-direction: column; gap: 0; margin-top: 4px; }
+    .control {
+      padding: 16px 2px;
+      border-bottom: 1px solid var(--hair);
+    }
+    .control:last-child { border-bottom: none; }
+    .control-name { font-weight: 700; font-size: 16px; }
+    .control p { margin: 4px 0 0; font-size: 15px; color: var(--ink-soft); }
+    .control .pill {
+      display: inline-block;
+      font-size: 14px;
+      font-weight: 700;
+      background: #52606e;
+      color: #fff;
+      border-radius: 6px;
+      padding: 0 7px;
+    }
+
+    /* Colophon */
+    .colophon {
+      margin-top: 60px;
+      padding-top: 18px;
+      border-top: 1px solid var(--line);
+      font-size: 14px;
+      color: var(--ink-soft);
+    }
+    .colophon p { margin: 4px 0; }
+
+    @media (prefers-contrast: more) {
+      :root { --line: #5b6770; --hair: #5b6770; --ink-soft: #2a363f; }
+    }
   </style>
 </head>
 <body>
-  <main class="card" role="main">
-    <h1>Steady is on</h1>
-    <p class="sub">Reduce motion and calm the web</p>
-    <p>
-      Steady is now <strong>on for every site</strong>. It quietly calms animations,
-      pauses autoplaying video and audio, and freezes animated GIFs, while leaving
-      pages fully scrollable, clickable, and typeable.
-    </p>
-    <p class="how">
-      Need motion back on a particular site? Open that site, click the
-      <strong>Steady</strong> icon in your toolbar, and turn on
-      <strong>Allow motion on this site</strong>.
-    </p>
+  <div class="page">
+    <header class="masthead">
+      <svg width="34" height="34" viewBox="0 0 34 34" role="img" aria-label="Steady icon">
+        <defs>
+          <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#3b4a5a"/>
+            <stop offset="1" stop-color="#52606e"/>
+          </linearGradient>
+        </defs>
+        <rect x="1" y="1" width="32" height="32" rx="8" fill="url(#bg)"/>
+        <rect x="8" y="15.5" width="18" height="3" rx="1.5" fill="#eef2f5"/>
+      </svg>
+      <span class="wordmark">Steady</span>
+      <span class="ed">Reduce motion. Calm the web.</span>
+    </header>
 
-    <h2>See it working right now</h2>
-    <ul class="try">
-      <li>
-        <a href="https://michalsnik.github.io/aos/" target="_blank" rel="noopener">Scroll-reveal demo</a><span>: content appears instantly instead of sliding in as you scroll.</span>
-      </li>
-      <li>
-        <a href="https://animate.style/" target="_blank" rel="noopener">CSS animation gallery</a><span>: click any effect and it snaps to its finished state, no motion.</span>
-      </li>
-      <li>
-        <a href="https://www.w3schools.com/howto/howto_css_parallax.asp" target="_blank" rel="noopener">Parallax demo</a><span>: the background scrolls with the page instead of floating.</span>
-      </li>
-      <li>
-        <a href="https://en.wikipedia.org/wiki/GIF" target="_blank" rel="noopener">Animated GIFs on Wikipedia</a><span>: every GIF holds still on its first frame.</span>
-      </li>
-    </ul>
-  </main>
+    <main>
+      <section aria-labelledby="hero-title">
+        <p class="kicker" id="hero-kicker">You are all set</p>
+        <h1 id="hero-title">The web,<br>holding still.</h1>
+        <p class="lead">
+          From this moment, Steady calms <strong>every site you visit</strong>:
+          animations settle instantly, autoplaying video and audio pause, GIFs
+          freeze, parallax stops drifting. Pages stay fully usable. You scroll,
+          click, and type as always; the web just stops squirming.
+        </p>
+      </section>
+
+      <section aria-labelledby="proof-title">
+        <p class="kicker">Proof</p>
+        <h2 id="proof-title">It is working on this very page</h2>
+        <div class="proof">
+          <div class="proof-stage">
+            <img id="demo-gif" alt="A demo animation of a dot swinging over a horizon line" width="240" height="144" hidden>
+          </div>
+          <p class="proof-status" id="proof-status" role="status" aria-live="polite">Checking your settings&hellip;</p>
+          <p class="proof-foot">
+            That animation is parked on its first frame, exactly the way Steady
+            parks GIFs on real sites. Flip the switch below to let it loose,
+            then bring the calm back.
+          </p>
+          <div class="switch-row">
+            <div class="switch-text">
+              <span class="switch-label" id="global-label">Steady everywhere</span>
+              <span class="switch-help">Your real master switch. The same one lives in the toolbar popup.</span>
+            </div>
+            <button id="global-toggle" type="button" role="switch" aria-checked="true"
+                    aria-labelledby="global-label" class="switch">
+              <span class="switch-track" aria-hidden="true"><span class="switch-thumb"></span></span>
+              <span class="switch-state" aria-hidden="true">On</span>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <section aria-labelledby="field-title">
+        <p class="kicker">Field test</p>
+        <h2 id="field-title">Now watch it tame real sites</h2>
+        <p class="lead" style="font-size:16px">
+          Open any of these and notice what is missing.
+        </p>
+        <div class="sites">
+          <a class="site" href="https://michalsnik.github.io/aos/" target="_blank" rel="noopener">
+            <span class="site-name">Scroll-reveal demo</span>
+            <span class="site-what">Content that normally slides and fades into view simply appears, already in place.</span>
+          </a>
+          <a class="site" href="https://animate.style/" target="_blank" rel="noopener">
+            <span class="site-name">CSS animation gallery</span>
+            <span class="site-what">Click any effect in the sidebar. It snaps to its finished state with no motion at all.</span>
+          </a>
+          <a class="site" href="https://www.w3schools.com/howto/howto_css_parallax.asp" target="_blank" rel="noopener">
+            <span class="site-name">Parallax demo</span>
+            <span class="site-what">The background stops floating and scrolls honestly with the page.</span>
+          </a>
+          <a class="site" href="https://en.wikipedia.org/wiki/GIF" target="_blank" rel="noopener">
+            <span class="site-name">Animated GIFs on Wikipedia</span>
+            <span class="site-what">Every GIF in the article holds politely still on its first frame.</span>
+          </a>
+        </div>
+      </section>
+
+      <section aria-labelledby="controls-title">
+        <p class="kicker">Your controls</p>
+        <h2 id="controls-title">Two switches and one badge</h2>
+        <div class="controls">
+          <div class="control">
+            <span class="control-name">Steady everywhere</span>
+            <p>The master switch, in the toolbar popup and above. On by default, on every site.</p>
+          </div>
+          <div class="control">
+            <span class="control-name">Allow motion on this site</span>
+            <p>Want a particular site animated? Open it, click the Steady icon, flip this on. Steady remembers your choice for that site only.</p>
+          </div>
+          <div class="control">
+            <span class="control-name">The <span class="pill">off</span> badge</span>
+            <p>A clean toolbar icon means Steady is calming the page. A small badge appears only when it is not, either because you allowed this site or turned Steady off.</p>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="colophon">
+      <p><strong>Quiet by design.</strong> No servers, no analytics, no network requests. Your settings never leave this device.</p>
+      <p>Steady is open source under the MIT license. This page contains no animation; that is the point.</p>
+    </footer>
+  </div>
+  <script src="onboarding.js"></script>
 </body>
 </html>
