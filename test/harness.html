@@ -82,6 +82,19 @@
     </section>
 
     <section>
+      <h2>7. Carousel paced by transitionend (strobe regression)</h2>
+      <p>
+        Many sites advance banners when the slide's transition finishes. If Steady
+        shortened durations, this would cycle as fast as events can fire (a strobe).
+        It must keep advancing about every 1.5s, just without sliding motion.
+      </p>
+      <div style="overflow:hidden;border:1px solid #d3dae0;border-radius:8px;width:260px">
+        <div id="caro-slide" style="padding:14px;background:#eef2f5;transition:transform 1.5s linear">Slide A</div>
+      </div>
+      <p>Advances so far: <span class="state" id="caro-count">0</span> (healthy: roughly one every 1.5s)</p>
+    </section>
+
+    <section>
       <h2>6. Interactivity check</h2>
       <p>Type here, then click: <input id="field" type="text" placeholder="type something"> <button id="echo-btn" type="button">Echo</button></p>
       <p id="echo"></p>
@@ -163,6 +176,23 @@
     });
     io.observe(document.getElementById('reveal1'));
     io.observe(document.getElementById('reveal2'));
+
+    // --- 7. carousel that advances on transitionend (the Upwork pattern) ---
+    (function () {
+      var el = document.getElementById('caro-slide');
+      var out = document.getElementById('caro-count');
+      var n = 0;
+      el.addEventListener('transitionend', function () {
+        n++;
+        out.textContent = n;
+        el.textContent = 'Slide ' + String.fromCharCode(65 + (n % 4));
+        el.style.transform = (n % 2) ? 'translateX(0)' : 'translateX(40px)';
+      });
+      // kick off after first layout so the initial transition actually runs
+      requestAnimationFrame(function () {
+        requestAnimationFrame(function () { el.style.transform = 'translateX(40px)'; });
+      });
+    })();
 
     // --- 6. interactivity echo ---
     document.getElementById('echo-btn').addEventListener('click', function () {

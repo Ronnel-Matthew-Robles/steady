@@ -24,10 +24,15 @@ scroll, click, and type the entire time.
 ## What it does
 
 1. **Calms animations and transitions.** A stylesheet is injected at `document_start`
-   (before the first paint, so there is no flash of animation). Crucially it does **not**
-   use `animation: none` or `transition: none`, which would leave content that animates
-   into view permanently invisible. Instead it forces animations and transitions to
-   complete instantly and hold their end state, so reveal-on-scroll content still appears.
+   (before the first paint, so there is no flash of animation). Two things make it safe:
+   it does **not** use `animation: none` or `transition: none`, which would leave content
+   that animates into view permanently invisible; and it does **not** shorten durations,
+   which would make carousels and banners that advance on `transitionend` or
+   `animationend` cycle as fast as the events can fire (an eye-watering strobe). Instead,
+   `step-start` timing functions make every animation and transition jump straight to its
+   end state visually while still running on the site's original clock, so reveal-on-scroll
+   content appears and auto-advancing banners keep their intended pace, just without the
+   sliding motion.
 2. **Pauses autoplaying video and audio.** Media that autoplays, or starts playing before
    you have interacted with the page, is paused. Media you explicitly start is left alone.
    Late-loaded media is handled too.
@@ -79,6 +84,11 @@ restored, and media that Steady paused is resumed (best effort), all without a r
   (apple.com is the best-known example) step a paused video's timeline or draw an image
   sequence to a canvas as you scroll. That motion is not playback, so there is nothing to
   pause, and suppressing it would hide the page's actual content.
+- **Timing functions declared inside `@keyframes` blocks** override element-level rules
+  by spec, so the rare animation built that way can keep moving at its normal speed.
+- **Multi-keyframe animations step instead of sweep.** An animation with intermediate
+  keyframes jumps discretely between those states on its original schedule rather than
+  completing in one jump. Far calmer than the smooth sweep, but not perfectly static.
 - **Animated images are detected by URL.** GIFs are frozen on sight; `.webp` files are
   checked for the animation flag first so static ones are left untouched. Animated images
   served from extension-less URLs (some CDN image proxies) are not detected.

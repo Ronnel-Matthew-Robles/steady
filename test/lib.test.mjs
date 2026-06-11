@@ -31,16 +31,28 @@ test('isEffectivelyCalm tolerates missing/partial settings (fail safe = calm)', 
   assert.equal(lib.isEffectivelyCalm(undefined, 'example.com'), false);
 });
 
-test('CALM_CSS forces instant completion and NEVER uses animation/transition: none', () => {
+test('CALM_CSS stills motion with step timing and NEVER uses none', () => {
   const css = lib.CALM_CSS;
-  assert.match(css, /animation-duration:\s*0\.001ms\s*!important/);
-  assert.match(css, /transition-duration:\s*0\.001ms\s*!important/);
+  assert.match(css, /animation-timing-function:\s*step-start\s*!important/);
+  assert.match(css, /transition-timing-function:\s*step-start\s*!important/);
   assert.match(css, /animation-iteration-count:\s*1\s*!important/);
   assert.match(css, /scroll-behavior:\s*auto\s*!important/);
   assert.doesNotMatch(css, /animation:\s*none/);
   assert.doesNotMatch(css, /transition:\s*none/);
   // best-effort parallax: neutralize fixed background attachment
   assert.match(css, /background-attachment:\s*scroll\s*!important/);
+});
+
+test('CALM_CSS preserves durations/delays so event-paced carousels keep their cadence', () => {
+  // Regression guard for the Upwork banner strobe: sites advance carousels on
+  // transitionend/animationend. Shortening durations makes those events fire
+  // near-instantly and the carousel cycles as fast as the event loop allows.
+  // Steady must remove motion via step timing, never by shortening time.
+  const css = lib.CALM_CSS;
+  assert.doesNotMatch(css, /animation-duration/);
+  assert.doesNotMatch(css, /transition-duration/);
+  assert.doesNotMatch(css, /animation-delay/);
+  assert.doesNotMatch(css, /transition-delay/);
 });
 
 test('animatedImageKind distinguishes gif from webp', () => {

@@ -3,19 +3,24 @@
  *
  * The authoritative copy is the CALM_CSS string constant in src/lib.js, which is
  * what actually gets injected at document_start. This file is kept identical for
- * readability and is loaded by test/harness.html. If you change one, change both.
+ * readability (a unit test enforces the sync). If you change one, change both.
  *
- * CRITICAL: never use `animation: none` or `transition: none`. Content that
- * animates into view would stay invisible. Instead we force animations and
- * transitions to complete instantly and hold their end state.
+ * Two rules are CRITICAL here:
+ * 1. Never use `animation: none` or `transition: none`. Content that animates
+ *    into view would stay invisible.
+ * 2. Never shorten durations or delays. Sites pace carousels and banners on
+ *    transitionend/animationend, and near-zero durations make those events fire
+ *    immediately, so the carousel cycles as fast as the event loop allows.
+ *
+ * step-start timing makes every animation and transition jump straight to its
+ * end state visually while still running for its original duration, so end
+ * states apply and the site's event schedule is untouched.
  */
 
 *, *::before, *::after {
-  animation-duration: 0.001ms !important;
-  animation-delay: 0ms !important;
+  animation-timing-function: step-start !important;
+  transition-timing-function: step-start !important;
   animation-iteration-count: 1 !important;
-  transition-duration: 0.001ms !important;
-  transition-delay: 0ms !important;
 }
 
 html, body { scroll-behavior: auto !important; }

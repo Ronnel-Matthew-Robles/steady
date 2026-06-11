@@ -11,17 +11,24 @@
 
 var DEFAULT_SETTINGS = { enabled: true, allowed: {} };
 
-// Reduced-motion ruleset. CRITICAL: never use `animation: none` or
-// `transition: none` -- content that animates into view would stay invisible.
-// Instead we force animations/transitions to complete instantly and hold their
-// end state, so reveal-on-scroll content still appears.
+// Reduced-motion ruleset. Two rules are CRITICAL here:
+//
+// 1. Never use `animation: none` or `transition: none` -- content that
+//    animates into view would stay invisible.
+// 2. Never shorten durations or delays -- sites pace carousels and banners on
+//    transitionend/animationend, and near-zero durations make those events
+//    fire immediately, so the carousel cycles as fast as the event loop
+//    allows (an infinite strobe; seen live on upwork.com's promo banner).
+//
+// Instead, step-start timing functions make every animation and transition
+// JUMP straight to its end state visually while still running for its
+// original duration, so end states apply (reveal-on-scroll content appears)
+// and the site's event schedule is untouched.
 var CALM_CSS = [
   '*, *::before, *::after {',
-  '  animation-duration: 0.001ms !important;',
-  '  animation-delay: 0ms !important;',
+  '  animation-timing-function: step-start !important;',
+  '  transition-timing-function: step-start !important;',
   '  animation-iteration-count: 1 !important;',
-  '  transition-duration: 0.001ms !important;',
-  '  transition-delay: 0ms !important;',
   '}',
   'html, body { scroll-behavior: auto !important; }',
   '* { scroll-behavior: auto !important; }',

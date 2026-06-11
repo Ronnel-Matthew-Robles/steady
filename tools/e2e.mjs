@@ -120,6 +120,9 @@ const REVEAL = `({
   classes: document.getElementById('reveal1').className + '|' + document.getElementById('reveal2').className,
 })`;
 
+const SPIN = `getComputedStyle(document.querySelector('.spinner')).transform`;
+const CARO = `Number(document.getElementById('caro-count').textContent)`;
+
 async function runScenario(loadExtension, port) {
   const profile = mkdtempSync(join(tmpdir(), 'steady-e2e-'));
   const chrome = launchChrome(profile, loadExtension);
@@ -142,6 +145,22 @@ async function runScenario(loadExtension, port) {
 
     const top = await cdp.eval(page, SNAPSHOT);
 
+    // Motion sampling: the spinner's computed transform changes between two
+    // samples if and only if it is actually animating.
+    const spinSample = async () => {
+      const a = await cdp.eval(page, SPIN);
+      await sleep(350);
+      const b = await cdp.eval(page, SPIN);
+      return { a, b, moving: a !== b };
+    };
+    const spin = await spinSample();
+
+    // Carousel cadence: the harness carousel advances on transitionend every
+    // ~1.5s. Shortened durations would make it cycle hundreds of times here.
+    const caroStart = await cdp.eval(page, CARO);
+    await sleep(4000);
+    const caroDelta = (await cdp.eval(page, CARO)) - caroStart;
+
     // Scroll the reveal section into view (the page ends with a 90vh spacer,
     // so scrolling to the absolute bottom would overshoot past it). The page
     // must be frontmost first: headless Chrome throttles rendering of
@@ -163,13 +182,15 @@ async function runScenario(loadExtension, port) {
         await cdp.eval(swSession, 'new Promise(r => chrome.storage.local.set({ enabled: false }, r))');
         await sleep(1000);
         const off = await cdp.eval(page, SNAPSHOT);
+        const offSpin = await spinSample();
         await cdp.eval(swSession, 'new Promise(r => chrome.storage.local.set({ enabled: true }, r))');
         await sleep(1500);
         const backOn = await cdp.eval(page, SNAPSHOT);
-        toggle = { off, backOn };
+        const onSpin = await spinSample();
+        toggle = { off, backOn, offSpin, onSpin };
       }
     }
-    return { top, bottom, toggle };
+    return { top, bottom, toggle, spin, caroDelta };
   } finally {
     chrome.kill('SIGKILL');
     await sleep(300);
@@ -193,7 +214,8 @@ try {
 
   // Baseline sanity: motion actually exists without Steady.
   check('baseline: no steady style', !base.top.styleInjected, base.top.styleInjected);
-  check('baseline: spinner animates (1s)', base.top.spinnerDur === '1s', base.top.spinnerDur);
+  check('baseline: spinner actually moves', base.spin.moving, `${base.spin.a} -> ${base.spin.b}`);
+  check('baseline: carousel paced ~1.5s (1-5 advances in 4s)', base.caroDelta >= 1 && base.caroDelta <= 5, base.caroDelta);
   check('baseline: video autoplays', !base.top.videoPaused, base.top.videoPaused);
   check('baseline: audio autoplays', !base.top.audioPaused, base.top.audioPaused);
   check('baseline: gif keeps animated source', base.top.gifSrc.includes('animated.gif'), base.top.gifSrc);
@@ -203,7 +225,9 @@ try {
 
   // Steady behavior.
   check('steady: style injected', ext.top.styleInjected, ext.top.styleInjected);
-  check('steady: spinner duration forced ~0', ext.top.spinnerDur !== '1s', ext.top.spinnerDur);
+  check('steady: spinner holds still', !ext.spin.moving, `${ext.spin.a} -> ${ext.spin.b}`);
+  check('steady: animation duration preserved (1s, not shortened)', ext.top.spinnerDur === '1s', ext.top.spinnerDur);
+  check('steady: carousel cadence NOT accelerated (1-5 advances in 4s)', ext.caroDelta >= 1 && ext.caroDelta <= 5, ext.caroDelta);
   check('steady: autoplay video paused', ext.top.videoPaused, ext.top.videoPaused);
   check('steady: autoplay audio paused', ext.top.audioPaused, ext.top.audioPaused);
   check('steady: gif frozen to png data url', ext.top.gifSrc.startsWith('data:image/png'), ext.top.gifSrc);
@@ -216,8 +240,11 @@ try {
   if (ext.toggle) {
     check('toggle off: style removed live', !ext.toggle.off.styleInjected, ext.toggle.off.styleInjected);
     check('toggle off: gif source restored', ext.toggle.off.gifSrc.includes('animated.gif'), ext.toggle.off.gifSrc);
-    check('toggle off: spinner animates again', ext.toggle.off.spinnerDur === '1s', ext.toggle.off.spinnerDur);
+    check('toggle off: spinner moves again', ext.toggle.offSpin.moving,
+      `${ext.toggle.offSpin.a} -> ${ext.toggle.offSpin.b}`);
     check('toggle on: style re-injected live', ext.toggle.backOn.styleInjected, ext.toggle.backOn.styleInjected);
+    check('toggle on: spinner still again', !ext.toggle.onSpin.moving,
+      `${ext.toggle.onSpin.a} -> ${ext.toggle.onSpin.b}`);
     check('toggle on: gif re-frozen', ext.toggle.backOn.gifSrc.startsWith('data:image/png'), ext.toggle.backOn.gifSrc);
   } else {
     check('toggle: service worker reachable', false, 'service worker target not found');

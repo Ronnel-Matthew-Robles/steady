@@ -169,3 +169,25 @@ from the original design in these ways:
 8. Badge semantics: a small "off" badge appears only when Steady is NOT calming the
    page; the clean icon is the everyday working state.
 9. Web Store title uses a colon, not a dash.
+
+## Field-bug amendment (2026-06-11): the carousel strobe
+
+Real-world testing on upwork.com found a critical flaw in the original CSS strategy.
+Forcing `animation-duration`/`transition-duration` to 0.001ms makes
+`transitionend`/`animationend` fire near-instantly, so any carousel or banner that
+advances on those events (a very common pattern) cycles as fast as the event loop
+allows: an infinite strobe, worse than the motion being suppressed.
+
+The ruleset was rewritten: durations and delays are left untouched, and
+`animation-timing-function`/`transition-timing-function` are forced to `step-start`
+instead. Every animation and transition jumps straight to its end state visually but
+still runs on the site's original clock, preserving event pacing. `animation-iteration-
+count: 1` still applies. The original "complete instantly" CSS in the sections above is
+superseded by this. Known trade-offs (documented in README): keyframe-internal timing
+functions can override the rule per spec, and multi-keyframe animations step discretely
+through their keyframes on the original schedule instead of finishing in one jump.
+
+Regression coverage: unit tests assert the ruleset never touches durations/delays;
+test/harness.html gained a transitionend-paced carousel; tools/e2e.mjs asserts the
+carousel cadence is NOT accelerated under Steady and that the spinner is verifiably
+still (sampled transforms) while its duration stays original.
