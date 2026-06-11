@@ -95,6 +95,26 @@
     </section>
 
     <section>
+      <h2>8. Web Animations API (element.animate)</h2>
+      <p>
+        This box slides via JS element.animate(), which CSS rules cannot reach.
+        Steady's main-world shim must hold it still at its end position while the
+        animation keeps its original timeline.
+      </p>
+      <div style="height:58px">
+        <div id="waapi-box" style="width:48px;height:48px;border-radius:8px;background:#3a6ea5"></div>
+      </div>
+      <p>
+        This second box plays the same animation with direction: reverse, so its true
+        resting position is the LEFT edge (the 0% keyframe). Under Steady it must hold
+        still at the left, not the right.
+      </p>
+      <div style="height:58px">
+        <div id="waapi-rev" style="width:48px;height:48px;border-radius:8px;background:#52606e"></div>
+      </div>
+    </section>
+
+    <section>
       <h2>6. Interactivity check</h2>
       <p>Type here, then click: <input id="field" type="text" placeholder="type something"> <button id="echo-btn" type="button">Echo</button></p>
       <p id="echo"></p>
@@ -168,6 +188,8 @@
       var audio = document.getElementById('audio');
       audio.src = 'data:audio/wav;base64,' + b64;
       audio.volume = 0.2;
+      // The autoplay attribute alone is flaky in headless runs; kick it.
+      audio.play().catch(function () {});
     })();
 
     // --- 4. reveal-on-scroll ---
@@ -193,6 +215,18 @@
         requestAnimationFrame(function () { el.style.transform = 'translateX(40px)'; });
       });
     })();
+
+    // --- 8. Web Animations API boxes ---
+    document.getElementById('waapi-box').animate(
+      [{ transform: 'translateX(0)' }, { transform: 'translateX(140px)' }],
+      { duration: 1200, iterations: Infinity, easing: 'linear' }
+    );
+    // Reversed playback ends at the 0% keyframe; Steady must hold THAT state
+    // (step-end), not the 100% keyframe.
+    document.getElementById('waapi-rev').animate(
+      [{ transform: 'translateX(0)' }, { transform: 'translateX(140px)' }],
+      { duration: 6000, iterations: 1, direction: 'reverse', fill: 'both', easing: 'linear' }
+    );
 
     // --- 6. interactivity echo ---
     document.getElementById('echo-btn').addEventListener('click', function () {

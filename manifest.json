@@ -27,7 +27,16 @@
       "matches": ["<all_urls>"],
       "js": ["src/lib.js", "src/content.js"],
       "run_at": "document_start",
-      "all_frames": true
+      "all_frames": true,
+      "match_origin_as_fallback": true
+    },
+    {
+      "matches": ["<all_urls>"],
+      "js": ["src/main-world.js"],
+      "run_at": "document_start",
+      "all_frames": true,
+      "match_origin_as_fallback": true,
+      "world": "MAIN"
     }
   ]
 }

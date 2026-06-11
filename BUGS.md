@@ -21,6 +21,19 @@ Template:
 
 ---
 
+## [LIMITATION 2026-06-11] Dashboard charts animate their entrance (GoHighLevel)
+
+- Date: 2026-06-11
+- URL: app.gohighlevel.com dashboard
+- What happened: donut, bar, and funnel charts run their entrance sweep on load.
+- Why it cannot be fixed: these charting libraries (ApexCharts/Chart.js style) redraw
+  a canvas or SVG frame by frame from JavaScript timers. That is ordinary drawing, not
+  an animation Steady can retime, and blocking the page's timers would break the app.
+  Documented in README known limitations.
+- Related hardening shipped: the same report exposed that Web Animations API
+  animations (element.animate) were not covered at all; a main-world shim now calms
+  those with the same step-start strategy.
+
 ## [FIXED 2026-06-11] Upwork banner strobes through slides
 
 - Date: 2026-06-11

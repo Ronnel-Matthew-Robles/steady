@@ -62,7 +62,20 @@
     if (existing && existing.parentNode) existing.parentNode.removeChild(existing);
   }
 
+  // The main-world shim (src/main-world.js) reads this flag to decide whether
+  // to calm Web Animations API animations, and watches it for live toggles.
+  function setCalmFlag(on) {
+    var de = document.documentElement;
+    if (!de) return;
+    if (on) de.setAttribute('data-steady-calm', '');
+    else de.removeAttribute('data-steady-calm');
+  }
+
   // Inject immediately. Calm-by-default is the safe, reversible failure mode.
+  // The calm flag is NOT set here: retimed Web Animations on a site the user
+  // has excepted may finish before settings resolve and would then be
+  // unrestorable, so WAAPI calming waits for applyState (CSS is fully
+  // reversible, so it stays eager).
   injectStyle();
 
   // ---- Settings + frame coordination ----------------------------------------
@@ -126,6 +139,7 @@
     reportStatus();
     var prev = state;
     state = calm ? 'calm' : 'inactive';
+    setCalmFlag(calm);
     if (calm) {
       injectStyle();
       startObserver();
@@ -432,4 +446,52 @@
   // anything parsed while settings were still pending.
   document.addEventListener('DOMContentLoaded', sweepAll);
   window.addEventListener('load', sweepAll);
+
+  // bfcache restores: storage.onChanged events are not delivered to frozen
+  // documents and are not replayed, so re-read settings on every restore.
+  window.addEventListener('pageshow', function (e) {
+    if (e.persisted) refresh();
+  });
+
+  // Pages can overwrite or replace <html> (document.write, outerHTML,
+  // DOM-morphing libraries), taking the calm flag, the injected style, and the
+  // per-root observer with it. Observing the Document node itself survives
+  // root replacement; the per-root attribute observer is re-attached on each
+  // new root. The flag is only re-asserted on divergence, so this never loops.
+  var integrityObserver = null;
+
+  function observeIntegrityRoot() {
+    var de = document.documentElement;
+    if (de && integrityObserver) {
+      try {
+        integrityObserver.observe(de, { attributes: true, attributeFilter: ['data-steady-calm'] });
+      } catch (e) { /* ignore */ }
+    }
+  }
+
+  function onIntegrityMutations(mutations) {
+    var rootReplaced = false;
+    for (var i = 0; i < mutations.length; i++) {
+      if (mutations[i].type === 'childList') { rootReplaced = true; break; }
+    }
+    var de = document.documentElement;
+    if (!de) return;
+    var wantCalm = state === 'calm';
+    if (de.hasAttribute('data-steady-calm') !== wantCalm) setCalmFlag(wantCalm);
+    if (rootReplaced) {
+      observeIntegrityRoot();
+      if (state !== 'inactive' && !document.getElementById(STYLE_ID)) injectStyle();
+      if (state === 'calm') {
+        stopObserver(); // the old observer is bound to the detached root
+        startObserver();
+        sweepAll();
+      }
+    }
+  }
+
+  if (typeof MutationObserver === 'function') {
+    integrityObserver = new MutationObserver(onIntegrityMutations);
+    try { integrityObserver.observe(document, { childList: true }); } catch (e) { /* ignore */ }
+    observeIntegrityRoot();
+  }
 })();

@@ -120,7 +120,11 @@ const REVEAL = `({
   classes: document.getElementById('reveal1').className + '|' + document.getElementById('reveal2').className,
 })`;
 
-const SPIN = `getComputedStyle(document.querySelector('.spinner')).transform`;
+const MOTION = `({
+  spinner: getComputedStyle(document.querySelector('.spinner')).transform,
+  waapi: getComputedStyle(document.getElementById('waapi-box')).transform,
+  rev: getComputedStyle(document.getElementById('waapi-rev')).transform,
+})`;
 const CARO = `Number(document.getElementById('caro-count').textContent)`;
 
 async function runScenario(loadExtension, port) {
@@ -132,10 +136,28 @@ async function runScenario(loadExtension, port) {
     if (loadExtension) {
       ({ id: extId } = await cdp.send('Extensions.loadUnpacked', { path: ROOT }));
       await sleep(500); // let the service worker register
+      // The first-run onboarding tab opens whenever the service worker finishes
+      // starting, which can land mid-measurement and steal focus; headless
+      // Chrome throttles unfocused pages hard enough to stall transition
+      // events. Wait for the tab and close it so focus stays deterministic.
+      for (let i = 0; i < 30; i++) {
+        const { targetInfos } = await cdp.send('Target.getTargets');
+        const onboarding = targetInfos.find((t) => t.url.includes('onboarding.html'));
+        if (onboarding) {
+          await cdp.send('Target.closeTarget', { targetId: onboarding.targetId });
+          break;
+        }
+        await sleep(100);
+      }
     }
     const { targetId } = await cdp.send('Target.createTarget',
       { url: `http://127.0.0.1:${port}/harness.html` });
     const page = await cdp.attach(targetId);
+    // Focus the page immediately: headless Chrome throttles rendering of
+    // unfocused targets, which stalls rAF, IntersectionObserver, and
+    // transition events (the extension run has an onboarding tab competing
+    // for focus).
+    await cdp.send('Page.bringToFront', {}, page);
 
     for (let i = 0; i < 50; i++) {
       if (await cdp.eval(page, 'document.readyState') === 'complete') break;
@@ -145,15 +167,22 @@ async function runScenario(loadExtension, port) {
 
     const top = await cdp.eval(page, SNAPSHOT);
 
-    // Motion sampling: the spinner's computed transform changes between two
-    // samples if and only if it is actually animating.
-    const spinSample = async () => {
-      const a = await cdp.eval(page, SPIN);
+    // Motion sampling: a computed transform changes between two samples if and
+    // only if the element is actually animating. Covers the CSS spinner and
+    // the Web-Animations-API box in one pair of reads.
+    const motionSample = async () => {
+      const a = await cdp.eval(page, MOTION);
       await sleep(350);
-      const b = await cdp.eval(page, SPIN);
-      return { a, b, moving: a !== b };
+      const b = await cdp.eval(page, MOTION);
+      return {
+        spinnerMoving: a.spinner !== b.spinner,
+        waapiMoving: a.waapi !== b.waapi,
+        revMoving: a.rev !== b.rev,
+        revAt: a.rev,
+        got: `spinner ${a.spinner} -> ${b.spinner}; waapi ${a.waapi} -> ${b.waapi}; rev ${a.rev} -> ${b.rev}`,
+      };
     };
-    const spin = await spinSample();
+    const motion = await motionSample();
 
     // Carousel cadence: the harness carousel advances on transitionend every
     // ~1.5s. Shortened durations would make it cycle hundreds of times here.
@@ -182,15 +211,15 @@ async function runScenario(loadExtension, port) {
         await cdp.eval(swSession, 'new Promise(r => chrome.storage.local.set({ enabled: false }, r))');
         await sleep(1000);
         const off = await cdp.eval(page, SNAPSHOT);
-        const offSpin = await spinSample();
+        const offMotion = await motionSample();
         await cdp.eval(swSession, 'new Promise(r => chrome.storage.local.set({ enabled: true }, r))');
         await sleep(1500);
         const backOn = await cdp.eval(page, SNAPSHOT);
-        const onSpin = await spinSample();
-        toggle = { off, backOn, offSpin, onSpin };
+        const onMotion = await motionSample();
+        toggle = { off, backOn, offMotion, onMotion };
       }
     }
-    return { top, bottom, toggle, spin, caroDelta };
+    return { top, bottom, toggle, motion, caroDelta };
   } finally {
     chrome.kill('SIGKILL');
     await sleep(300);
@@ -214,7 +243,9 @@ try {
 
   // Baseline sanity: motion actually exists without Steady.
   check('baseline: no steady style', !base.top.styleInjected, base.top.styleInjected);
-  check('baseline: spinner actually moves', base.spin.moving, `${base.spin.a} -> ${base.spin.b}`);
+  check('baseline: spinner actually moves', base.motion.spinnerMoving, base.motion.got);
+  check('baseline: WAAPI box actually moves', base.motion.waapiMoving, base.motion.got);
+  check('baseline: reversed WAAPI box actually moves', base.motion.revMoving, base.motion.got);
   check('baseline: carousel paced ~1.5s (1-5 advances in 4s)', base.caroDelta >= 1 && base.caroDelta <= 5, base.caroDelta);
   check('baseline: video autoplays', !base.top.videoPaused, base.top.videoPaused);
   check('baseline: audio autoplays', !base.top.audioPaused, base.top.audioPaused);
@@ -225,7 +256,11 @@ try {
 
   // Steady behavior.
   check('steady: style injected', ext.top.styleInjected, ext.top.styleInjected);
-  check('steady: spinner holds still', !ext.spin.moving, `${ext.spin.a} -> ${ext.spin.b}`);
+  check('steady: spinner holds still', !ext.motion.spinnerMoving, ext.motion.got);
+  check('steady: WAAPI box holds still', !ext.motion.waapiMoving, ext.motion.got);
+  check('steady: reversed WAAPI box holds still', !ext.motion.revMoving, ext.motion.got);
+  check('steady: reversed WAAPI box held at its TRUE end (0% keyframe)',
+    ext.motion.revAt === 'matrix(1, 0, 0, 1, 0, 0)', ext.motion.revAt);
   check('steady: animation duration preserved (1s, not shortened)', ext.top.spinnerDur === '1s', ext.top.spinnerDur);
   check('steady: carousel cadence NOT accelerated (1-5 advances in 4s)', ext.caroDelta >= 1 && ext.caroDelta <= 5, ext.caroDelta);
   check('steady: autoplay video paused', ext.top.videoPaused, ext.top.videoPaused);
@@ -240,11 +275,11 @@ try {
   if (ext.toggle) {
     check('toggle off: style removed live', !ext.toggle.off.styleInjected, ext.toggle.off.styleInjected);
     check('toggle off: gif source restored', ext.toggle.off.gifSrc.includes('animated.gif'), ext.toggle.off.gifSrc);
-    check('toggle off: spinner moves again', ext.toggle.offSpin.moving,
-      `${ext.toggle.offSpin.a} -> ${ext.toggle.offSpin.b}`);
+    check('toggle off: spinner moves again', ext.toggle.offMotion.spinnerMoving, ext.toggle.offMotion.got);
+    check('toggle off: WAAPI box moves again', ext.toggle.offMotion.waapiMoving, ext.toggle.offMotion.got);
     check('toggle on: style re-injected live', ext.toggle.backOn.styleInjected, ext.toggle.backOn.styleInjected);
-    check('toggle on: spinner still again', !ext.toggle.onSpin.moving,
-      `${ext.toggle.onSpin.a} -> ${ext.toggle.onSpin.b}`);
+    check('toggle on: spinner still again', !ext.toggle.onMotion.spinnerMoving, ext.toggle.onMotion.got);
+    check('toggle on: WAAPI box still again', !ext.toggle.onMotion.waapiMoving, ext.toggle.onMotion.got);
     check('toggle on: gif re-frozen', ext.toggle.backOn.gifSrc.startsWith('data:image/png'), ext.toggle.backOn.gifSrc);
   } else {
     check('toggle: service worker reachable', false, 'service worker target not found');

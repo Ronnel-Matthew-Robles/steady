@@ -191,3 +191,31 @@ Regression coverage: unit tests assert the ruleset never touches durations/delay
 test/harness.html gained a transitionend-paced carousel; tools/e2e.mjs asserts the
 carousel cadence is NOT accelerated under Steady and that the spinner is verifiably
 still (sampled transforms) while its duration stays original.
+
+## Coverage amendment (2026-06-11): Web Animations API shim
+
+Field testing on app.gohighlevel.com showed load-time animations passing through.
+Canvas/SVG chart drawing is out of reach (documented limitation), but it exposed a real
+gap: WAAPI animations (element.animate, used by Framer Motion and similar) ignore
+injected CSS entirely. A new main-world content script (src/main-world.js, manifest
+"world": "MAIN") patches Element.prototype.animate and applies the same strategy:
+effect easing forced to step-start, durations untouched, so the animation renders its
+end state on the original timeline. Original easings are saved and restored on live
+toggle via document.getAnimations(); CSSAnimation/CSSTransition instances are excluded
+(the stylesheet owns those). The isolated-world content script coordinates state via a
+data-steady-calm attribute on <html>. Regression coverage: a WAAPI-animated box in the
+harness with baseline/steady/toggle stillness assertions in tools/e2e.mjs.
+
+A 26-agent adversarial review of the shim confirmed 13 hardening issues, all applied:
+per-animation step choice (reversed playback, alternate, negative rates hold the 0%
+keyframe via step-end, verified by a direction:reverse harness fixture); a WeakRef
+registry so restore no longer depends on document.getAnimations() (which omits
+finished, detached, and shadow-root animations); Animation.prototype.play/reverse
+wrapped to catch new Animation(...) construction, replays, and direction flips;
+scroll/view-timeline animations skipped (pinning them would freeze scroll-position
+UI); primordials captured so a page overriding hasAttribute/documentElement cannot
+break animate(); match_origin_as_fallback on both content scripts for opaque-origin
+frames; the calm flag deferred until settings resolve (pending-window animations on
+excepted sites could finish before restore was possible); a pageshow handler re-reads
+settings after bfcache restores; and integrity observers in both worlds re-assert the
+flag, style, and observers if a page tampers with or replaces <html>.

@@ -32,7 +32,9 @@ scroll, click, and type the entire time.
    `step-start` timing functions make every animation and transition jump straight to its
    end state visually while still running on the site's original clock, so reveal-on-scroll
    content appears and auto-advancing banners keep their intended pace, just without the
-   sliding motion.
+   sliding motion. A small main-world script applies the same treatment to Web Animations
+   API animations (`element.animate()`, used by libraries like Framer Motion), which
+   injected CSS cannot reach.
 2. **Pauses autoplaying video and audio.** Media that autoplays, or starts playing before
    you have interacted with the page, is paused. Media you explicitly start is left alone.
    Late-loaded media is handled too.
@@ -69,6 +71,9 @@ restored, and media that Steady paused is resumed (best effort), all without a r
 - `src/lib.js` holds the pure logic and the reduced-motion ruleset (`CALM_CSS`).
 - `src/content.js` injects the stylesheet, pauses media, freezes images, and watches for
   late content with a `MutationObserver`.
+- `src/main-world.js` runs in the page's own world and retimes Web Animations API
+  animations the same way (step-start easing, original duration), coordinated through a
+  `data-steady-calm` attribute on `<html>`.
 - `src/background.js` shows the first-run page and keeps the per-tab toolbar badge in sync.
 - `popup/` is the accessible control panel.
 
@@ -84,6 +89,10 @@ restored, and media that Steady paused is resumed (best effort), all without a r
   (apple.com is the best-known example) step a paused video's timeline or draw an image
   sequence to a canvas as you scroll. That motion is not playback, so there is nothing to
   pause, and suppressing it would hide the page's actual content.
+- **JS-drawn charts animate their entrance.** Dashboard libraries (Chart.js, ApexCharts,
+  ECharts and similar) redraw a canvas or SVG frame by frame from JavaScript timers when
+  a chart loads. Like scroll scrubbing, that is ordinary drawing rather than an animation
+  Steady can retime; blocking the page's timers would break the app itself.
 - **Timing functions declared inside `@keyframes` blocks** override element-level rules
   by spec, so the rare animation built that way can keep moving at its normal speed.
 - **Multi-keyframe animations step instead of sweep.** An animation with intermediate
