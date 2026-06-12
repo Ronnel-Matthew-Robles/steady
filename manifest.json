@@ -3,8 +3,19 @@
   "name": "Steady: Reduce Motion & Calm the Web",
   "short_name": "Steady",
   "version": "1.0.0",
+  "minimum_chrome_version": "111",
   "description": "Forcibly reduces motion and sensory overload on every website, while keeping pages fully interactive.",
   "permissions": ["storage", "activeTab"],
+  "commands": {
+    "toggle-site": {
+      "suggested_key": { "default": "Alt+Shift+S" },
+      "description": "Allow or calm motion on the current site"
+    },
+    "toggle-global": {
+      "suggested_key": { "default": "Alt+Shift+G" },
+      "description": "Turn Steady on or off everywhere"
+    }
+  },
   "action": {
     "default_popup": "popup/popup.html",
     "default_title": "Steady",

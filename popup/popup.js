@@ -19,8 +19,25 @@ var els = {
   site: document.getElementById('site-toggle'),
   siteHost: document.getElementById('site-host'),
   siteRow: document.getElementById('site-row'),
-  note: document.getElementById('note')
+  note: document.getElementById('note'),
+  report: document.getElementById('report-link')
 };
+
+var REPORT_BASE = 'https://github.com/Ronnel-Matthew-Robles/steady/issues/new';
+
+function updateReportLink() {
+  if (!els.report) return;
+  var title = state.host ? 'Problem on ' + state.host : 'Problem report';
+  var body = [
+    '**URL:** ' + (state.host || '(not a website)'),
+    '**What happened:** ',
+    '**What I expected:** ',
+    ''
+  ].join('\n');
+  els.report.href = REPORT_BASE +
+    '?title=' + encodeURIComponent(title) +
+    '&body=' + encodeURIComponent(body);
+}
 
 var state = {
   settings: DEFAULT_SETTINGS,
@@ -155,6 +172,7 @@ async function init() {
   state.kind = info.kind;
   state.host = normalizeHost(info.host);
   state.settings = await getSettings();
+  updateReportLink();
   render();
 }
 

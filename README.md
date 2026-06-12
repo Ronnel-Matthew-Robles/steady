@@ -132,6 +132,19 @@ data is your global toggle and the list of sites you have allowed motion on, in
 Note: to test on `file://` pages such as the harness, enable "Allow access to file URLs"
 for Steady on `chrome://extensions`.
 
+## Reporting problems
+
+Found a site where Steady misbehaves? [Open an issue](https://github.com/Ronnel-Matthew-Robles/steady/issues/new/choose)
+with the URL, what happened, and what you expected. The popup's "Report a problem"
+link pre-fills one for the site you are on.
+
+## Keyboard shortcuts
+
+- `Alt+Shift+S`: allow or calm motion on the current site
+- `Alt+Shift+G`: turn Steady on or off everywhere
+
+Both are remappable at `chrome://extensions/shortcuts`.
+
 ## License
 
 MIT. See [LICENSE](LICENSE).

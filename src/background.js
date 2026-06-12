@@ -104,3 +104,35 @@ chrome.tabs.onRemoved.addListener(function (tabId) {
     chrome.storage.session.remove(TOP_HOST_PREFIX + tabId);
   }
 });
+
+// Keyboard shortcuts. Pressing a command grants activeTab, so tab.url is
+// readable here without the broad "tabs" permission. The content script
+// reacts to the storage write live; no messaging needed.
+chrome.commands.onCommand.addListener(function (command) {
+  if (command === 'toggle-global') {
+    chrome.storage.local.get(DEFAULT_SETTINGS, function (settings) {
+      chrome.storage.local.set({ enabled: settings.enabled === false });
+    });
+    return;
+  }
+  if (command !== 'toggle-site') return;
+  chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
+    var tab = tabs && tabs[0];
+    if (!tab || !tab.url) return;
+    var host;
+    try {
+      var u = new URL(tab.url);
+      if (u.protocol !== 'http:' && u.protocol !== 'https:') return;
+      host = normalizeHost(u.hostname);
+    } catch (e) {
+      return;
+    }
+    chrome.storage.local.get(DEFAULT_SETTINGS, function (settings) {
+      if (settings.enabled === false) return; // per-site has no meaning while off
+      var allowed = settings.allowed || {};
+      if (allowed[host]) delete allowed[host];
+      else allowed[host] = true;
+      chrome.storage.local.set({ allowed: allowed });
+    });
+  });
+});
