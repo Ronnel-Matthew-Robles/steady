@@ -104,3 +104,46 @@ absolute "no network requests" phrasing (see P0 nuance).
 | 8 | Shadow DOM | **Missing** | add open+closed fixtures + checks |
 | 9 | Own UI keyboard/no-motion | Onboarding automated; popup manual | options page gets checks |
 | 10 | Flash dampening | n/a (feature absent) | add with the feature |
+
+## Post-review hardening (2026-06-13)
+
+A 36-agent adversarial review of the v2 diff confirmed 32 findings (heavily
+overlapping; ~14 unique fixes), all applied:
+
+- **Top-layer overlays (blocker):** soften/panic overlays were invisible over
+  fullscreen video and `<dialog>`/popover UI, and lost to site elements at
+  int-max z-index. They now use `popover="manual"` to enter the top layer,
+  re-asserting on fullscreenchange; panic supersedes soften so two
+  full-viewport backdrop-filters never stack.
+- **Shadow sheet seeding:** the isolated-world sheet seeded with the FULL
+  ruleset, ignoring persisted feature toggles on fresh loads; it now seeds
+  from the feature-composed text (e2e regression: fresh load with
+  animations=false keeps shadow spinners moving).
+- **Detached-subtree restore:** WeakRef registries for shadow roots, frozen
+  images, blanked sources, and paused media make toggle-off reach subtrees
+  SPAs have detached-and-cached; connected-tree queries alone missed them.
+- **Targeted shadow hints:** the attachShadow hint now dispatches from the
+  host (composed) and the isolated world sweeps only the new root; detached
+  hosts are covered by the childList observer on insertion. No more repeated
+  whole-document rescans on component-heavy pages.
+- **Flag split:** the calm flag's presence gates stylesheet adoption while an
+  'a' in its value gates WAAPI retiming, so turning animations off no longer
+  strips scroll/dampen CSS from closed shadow roots.
+- **Dampen rides the main sheet** (reaches shadow roots, covers query-string
+  and srcset GIFs, `@media screen` spares printouts) and survives per-site
+  exceptions, since comfort is global.
+- **Panic is session-scoped** (clears on browser restart; the service worker
+  grants content scripts session access) and still works with Steady off.
+- **'play' listeners per shadow root** ('play' is non-composed and never
+  crosses shadow boundaries).
+- **Async freeze callbacks** (webp sniff, CORS probe, load listeners) re-check
+  the images gate so a feature toggled off mid-flight cannot strand a frozen
+  image; self-healing re-injects the stylesheet/overlays if a page prunes them.
+- **Write-race fixes:** popup and options now do fresh read-modify-writes of
+  only the keys they change (a wholesale snapshot write could clobber
+  keyboard-command and cross-surface writes).
+- **Options a11y:** focus restored after exceptions-list rebuilds, slider gets
+  live value text + aria-valuetext and is never clobbered mid-drag, and the
+  flashing disclaimer is wired to its switch via aria-describedby.
+
+Final state: 13/13 unit tests, 72/72 e2e checks.

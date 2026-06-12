@@ -37,6 +37,30 @@
   function mediaOn() { return feat.media !== false; }
   function imagesOn() { return feat.images !== false; }
 
+  // WeakRef registries: restore must never depend on connected-tree queries,
+  // because SPAs detach-and-cache subtrees (React keep-alive, HTMX swaps).
+  // Anything we mutate is registered so toggle-off can reach it even while
+  // its subtree is detached. The main world uses the same pattern.
+  var canWeakRef = typeof WeakRef === 'function';
+  var knownRoots = canWeakRef ? new Set() : null; // every open shadow root ever seen
+  var rootSeen = typeof WeakSet === 'function' ? new WeakSet() : null;
+  var frozenReg = canWeakRef ? new Set() : null;  // imgs whose src we rewrote
+  var sourceReg = canWeakRef ? new Set() : null;  // <source> elements we blanked
+  var pausedReg = canWeakRef ? new Set() : null;  // media we paused
+
+  function regAdd(reg, obj) {
+    if (reg) reg.add(new WeakRef(obj));
+  }
+
+  function regEach(reg, fn) {
+    if (!reg) return;
+    reg.forEach(function (ref) {
+      var obj = ref.deref();
+      if (!obj) { reg.delete(ref); return; }
+      fn(obj);
+    });
+  }
+
   // ---- Calm stylesheet (synchronous, pre-paint) ----------------------------
 
   function buildStyle() {
@@ -68,11 +92,33 @@
     if (existing && existing.parentNode) existing.parentNode.removeChild(existing);
   }
 
+  // Dampen rules ride in the SAME stylesheet as the calm rules so they reach
+  // shadow roots for free (isolated sheet + main-world sheet). @media screen
+  // keeps printouts unfiltered. Dampen is a comfort layer: it applies even on
+  // excepted sites, so composeCss includes it in the 'inactive' state too.
+  var DAMPEN_CSS = [
+    '@media screen {',
+    '  video, canvas,',
+    '  img[src*=".gif"], img[srcset*=".gif"], img[src^="data:image/gif"],',
+    '  img[data-steady-frozen] {',
+    '    filter: brightness(0.8) contrast(0.75) !important;',
+    '  }',
+    '}'
+  ].join('\n');
+
+  function composeCss() {
+    var css = state === 'inactive' ? '' : buildCalmCss(feat);
+    if (lastSettings.enabled !== false && lastSettings.dampen === true) {
+      css += (css ? '\n' : '') + DAMPEN_CSS;
+    }
+    return css;
+  }
+
   // Recompose the stylesheet for the enabled CSS features. The shadow-root
   // sheet shares the same text; replaceSync updates every adopted root live,
   // and the main-world shim re-reads the style element on the next flag flip.
   function refreshStyleText() {
-    var css = buildCalmCss(feat);
+    var css = composeCss();
     if (styleEl && styleEl.textContent !== css) styleEl.textContent = css;
     if (shadowSheet) {
       try { shadowSheet.replaceSync(css); } catch (e) { /* ignore */ }
@@ -84,10 +130,19 @@
   // The value is a feature signature: changing it (not just adding/removing
   // the attribute) wakes the shim so it re-reads the injected stylesheet for
   // its shadow-root sheet.
-  function setCalmFlag(on) {
+  function flagValue(calm) {
+    var v = '';
+    if (calm && feat.animations !== false) v += 'a'; // WAAPI retiming gate
+    if (calm && feat.scroll !== false) v += 's';
+    if (lastSettings.enabled !== false && lastSettings.dampen === true) v += 'd';
+    return v;
+  }
+
+  function setCalmFlag(calm) {
     var de = document.documentElement;
     if (!de) return;
-    if (on) de.setAttribute('data-steady-calm', feat.scroll !== false ? 's' : '');
+    var v = flagValue(calm);
+    if (v) de.setAttribute('data-steady-calm', v);
     else de.removeAttribute('data-steady-calm');
   }
 
@@ -119,7 +174,23 @@
           cb(DEFAULT_SETTINGS);
           return;
         }
-        cb(stored || DEFAULT_SETTINGS);
+        var settings = stored || DEFAULT_SETTINGS;
+        // Panic lives in storage.session so it clears on browser restart
+        // (nobody should come back hours later to a mysteriously dim web).
+        // Content-script access requires the background's setAccessLevel.
+        if (chrome.storage.session) {
+          try {
+            chrome.storage.session.get({ panic: false }, function (sess) {
+              if (!(chrome.runtime && chrome.runtime.lastError) && sess) {
+                settings.panic = sess.panic === true;
+              }
+              cb(settings);
+            });
+            return;
+          } catch (e) { /* fall through */ }
+        }
+        settings.panic = false;
+        cb(settings);
       });
     } catch (e) {
       cb(DEFAULT_SETTINGS);
@@ -166,14 +237,29 @@
   //   the master switch: the keypress itself is the consent, and someone
   //   reaching for it should never find it disabled.
 
-  function ensureComfortNode(id, tag) {
+  // Overlays use the Popover API to enter the TOP LAYER: a plain max-z-index
+  // div is invisible over fullscreen video and above-everything <dialog>s,
+  // and loses to site UI pinned at int-max z-index. popover='manual' beats
+  // all of that; the inline styles below zero out the popover UA defaults.
+  // Falls back to a plain fixed overlay where showPopover is unavailable.
+  function ensureOverlay(id, extraCss) {
     var el = document.getElementById(id);
-    if (el) return el;
-    el = document.createElement(tag);
-    el.id = id;
-    el.setAttribute('data-steady', '');
-    var parent = tag === 'style' ? (document.head || document.documentElement) : document.documentElement;
-    if (parent) parent.appendChild(el);
+    if (!el) {
+      el = document.createElement('div');
+      el.id = id;
+      el.setAttribute('data-steady', '');
+      if ('popover' in el) el.popover = 'manual';
+      if (document.documentElement) document.documentElement.appendChild(el);
+    }
+    el.style.cssText =
+      'position:fixed;inset:0;width:100vw;height:100vh;margin:0;padding:0;' +
+      'border:0;overflow:hidden;pointer-events:none;z-index:2147483647;' + extraCss;
+    if (typeof el.showPopover === 'function') {
+      // hide+show jumps to the top of the top-layer stack, above any dialog
+      // or fullscreen element that appeared since
+      try { el.hidePopover(); } catch (e) { /* was not showing */ }
+      try { el.showPopover(); } catch (e) { /* not connected yet */ }
+    }
     return el;
   }
 
@@ -185,35 +271,39 @@
   function applyComfort(settings) {
     var on = settings.enabled !== false;
     var isTop = window.top === window;
+    if (!isTop) return; // dampen rides the main stylesheet; overlays are top-only
 
+    // Panic intentionally ignores the master switch: the keypress is the
+    // consent, and someone reaching for it must never find it disabled.
+    var panicOn = settings.panic === true;
+    if (panicOn) {
+      ensureOverlay('steady-panic',
+        'background:rgba(10,14,18,0.45);backdrop-filter:brightness(0.6);');
+    } else {
+      dropComfortNode('steady-panic');
+    }
+
+    // Panic supersedes soften: never stack two full-viewport backdrop-filters.
     var soften = settings.soften || {};
-    if (isTop && on && soften.enabled) {
+    if (on && soften.enabled === true && !panicOn) {
       var level = Math.max(0, Math.min(100, Number(soften.level) || 0));
       var bright = (1 - 0.20 * level / 100).toFixed(3);
       var sat = (1 - 0.35 * level / 100).toFixed(3);
-      ensureComfortNode('steady-soften', 'div').style.cssText =
-        'position:fixed;inset:0;pointer-events:none;z-index:2147483646;' +
-        'backdrop-filter:brightness(' + bright + ') saturate(' + sat + ');';
-    } else if (isTop) {
+      ensureOverlay('steady-soften',
+        'background:transparent;backdrop-filter:brightness(' + bright + ') saturate(' + sat + ');');
+    } else {
       dropComfortNode('steady-soften');
     }
 
-    if (on && settings.dampen) {
-      ensureComfortNode('steady-dampen-style', 'style').textContent =
-        'video, canvas, img[src$=".gif" i], img[src^="data:image/gif"] {' +
-        ' filter: brightness(0.8) contrast(0.75) !important; }';
-    } else {
-      dropComfortNode('steady-dampen-style');
-    }
-
-    if (isTop && settings.panic) {
-      ensureComfortNode('steady-panic', 'div').style.cssText =
-        'position:fixed;inset:0;pointer-events:none;z-index:2147483647;' +
-        'background:rgba(10,14,18,0.45);backdrop-filter:brightness(0.6);';
-    } else if (isTop) {
-      dropComfortNode('steady-panic');
-    }
+    // migration: v1.1.0 briefly shipped dampen as its own style element
+    dropComfortNode('steady-dampen-style');
   }
+
+  // A site entering fullscreen lands above our overlays in the top layer;
+  // re-asserting bumps them back to the top of the stack.
+  document.addEventListener('fullscreenchange', function () {
+    applyComfort(lastSettings);
+  });
 
   function applyState(settings) {
     var host = window.top === window ? location.hostname : (topHost || location.hostname);
@@ -224,20 +314,27 @@
     reportStatus();
     var prev = state;
     state = calm ? 'calm' : 'inactive';
-    // The calm flag drives the main-world WAAPI shim, which belongs to the
-    // animations feature.
-    setCalmFlag(calm && featureOn(settings, 'animations'));
+    // Flag value encodes which calming the main world should do ('a' = WAAPI,
+    // 's' = scroll rules, 'd' = dampen); any value change wakes its observer.
+    setCalmFlag(calm);
     if (calm) {
       injectStyle();
       refreshStyleText();
       startObserver();
       // A feature switched off while the site stays calm must release its
       // effects; the sweeps below respect the gates and re-apply the rest.
-      if (!featureOn(settings, 'media')) forAllScopes(resumePausedMedia);
-      if (!featureOn(settings, 'images')) forAllScopes(unfreezeImages);
+      if (!featureOn(settings, 'media')) releasePausedMedia();
+      if (!featureOn(settings, 'images')) releaseFrozenImages();
       sweepAll();
     } else {
-      removeStyle();
+      // Dampen is a comfort layer and survives per-site exceptions, so the
+      // style element may still be needed with dampen-only content.
+      if (composeCss()) {
+        injectStyle();
+        refreshStyleText();
+      } else {
+        removeStyle();
+      }
       stopObserver();
       if (prev === 'calm') restoreAll();
     }
@@ -254,9 +351,13 @@
 
   if (chromeOk() && chrome.storage && chrome.storage.onChanged) {
     chrome.storage.onChanged.addListener(function (changes, area) {
+      if (area === 'session') {
+        if (changes.panic) refresh();
+        return;
+      }
       if (area !== 'local') return;
       if (!changes.enabled && !changes.allowed && !changes.features &&
-          !changes.soften && !changes.dampen && !changes.panic) return;
+          !changes.soften && !changes.dampen) return;
       refresh();
     });
   }
@@ -282,6 +383,7 @@
         media.autoplay = false;
         media.pause();
         media.setAttribute('data-steady-paused', '1');
+        regAdd(pausedReg, media);
       } catch (e) { /* ignore */ }
     }
   }
@@ -300,7 +402,7 @@
   // mark that element user-played and never touch it again. Anything else
   // (declarative autoplay, programmatic .play() with no gesture) gets paused,
   // no matter how late in the page's life it starts.
-  document.addEventListener('play', function (e) {
+  function onPlayCapture(e) {
     if (state !== 'calm' || !mediaOn()) return;
     var t = e.target;
     if (!t || typeof t.pause !== 'function') return;
@@ -315,8 +417,13 @@
     try {
       t.pause();
       t.setAttribute('data-steady-paused', '1');
+      regAdd(pausedReg, t);
     } catch (err) { /* ignore */ }
-  }, true);
+  }
+  // 'play' never crosses shadow boundaries (it is a non-composed event), so
+  // this document listener covers the light DOM only; registerRoot attaches
+  // the same handler to every discovered open shadow root.
+  document.addEventListener('play', onPlayCapture, true);
 
   // ---- Animated image freezing ----------------------------------------------
 
@@ -327,6 +434,7 @@
       for (var i = 0; i < sources.length; i++) {
         sources[i].dataset.steadySrcset = sources[i].getAttribute('srcset') || '';
         sources[i].setAttribute('srcset', '');
+        regAdd(sourceReg, sources[i]);
       }
     }
   }
@@ -344,6 +452,7 @@
     img.dataset.steadyOrigSrc = img.getAttribute('src') || '';
     if (img.hasAttribute('srcset')) img.dataset.steadyOrigSrcset = img.getAttribute('srcset');
     img.dataset.steadyFrozen = '1';
+    regAdd(frozenReg, img);
     disablePictureSources(img);
     img.removeAttribute('srcset');
     img.src = dataUrl;
@@ -360,7 +469,8 @@
     var probe = new Image();
     probe.crossOrigin = 'anonymous';
     probe.onload = function () {
-      if (state !== 'calm') return;
+      // async: the images feature may have been toggled off since the probe began
+      if (state !== 'calm' || !imagesOn()) return;
       try {
         writeFrozenFrame(img, probe);
       } catch (e) {
@@ -372,7 +482,8 @@
   }
 
   function doFreeze(img) {
-    if (state !== 'calm' || img.dataset.steadyFrozen) return;
+    // re-check the gate: webp sniffs and load listeners land here asynchronously
+    if (state !== 'calm' || !imagesOn() || img.dataset.steadyFrozen) return;
     try {
       writeFrozenFrame(img, img);
     } catch (e) {
@@ -462,7 +573,9 @@
     if (typeof CSSStyleSheet !== 'function') return null;
     try {
       shadowSheet = new CSSStyleSheet();
-      shadowSheet.replaceSync(CALM_CSS);
+      // seed with the feature-composed text, never the full ruleset: a user
+      // who persisted animations=false must not get step-timed shadow DOM
+      shadowSheet.replaceSync(composeCss());
     } catch (e) {
       shadowSheet = null;
     }
@@ -506,15 +619,34 @@
     return acc;
   }
 
-  // Observe + sweep every open shadow root under scope (and scope itself).
-  function processShadowRoots(scope) {
-    var roots = collectOpenRoots(scope, []);
+  function registerRoot(root) {
+    var isNew = !rootSeen || !rootSeen.has(root);
+    if (rootSeen && isNew) {
+      rootSeen.add(root);
+      regAdd(knownRoots, root);
+      // 'play' is non-composed and never crosses shadow boundaries; each root
+      // needs its own capture listener for media inside it.
+      try { root.addEventListener('play', onPlayCapture, true); } catch (e) { /* ignore */ }
+    }
+    if (observer && observedRoots && !observedRoots.has(root)) {
+      observedRoots.add(root);
+      try { observer.observe(root, OBSERVER_OPTS); } catch (e) { /* ignore */ }
+    }
+    return isNew;
+  }
+
+  // Observe + sweep open shadow roots under scope (and scope itself, when the
+  // scope IS a shadow root). force=true re-sweeps known roots (activation and
+  // feature changes); force=false touches only roots never seen before, so
+  // the hot hint path never does repeated work.
+  function processShadowRoots(scope, force) {
+    var roots = [];
+    if (scope && scope.host && scope.querySelectorAll) roots.push(scope);
+    collectOpenRoots(scope, roots);
     for (var i = 0; i < roots.length; i++) {
       var root = roots[i];
-      if (observer && observedRoots && !observedRoots.has(root)) {
-        observedRoots.add(root);
-        try { observer.observe(root, OBSERVER_OPTS); } catch (e) { /* ignore */ }
-      }
+      var isNew = registerRoot(root);
+      if (!force && !isNew) continue;
       adoptCalmSheet(root);
       pauseMedia(root);
       freezeImagesIn(root);
@@ -523,63 +655,93 @@
 
   // ---- Restore (per-site exception / global off) -----------------------------
 
+  function restoreMediaEl(media) {
+    if (!media.hasAttribute || !media.hasAttribute('data-steady-paused')) return;
+    media.removeAttribute('data-steady-paused');
+    try {
+      var p = media.play();
+      if (p && p.catch) p.catch(function () { /* autoplay policy may block */ });
+    } catch (e) { /* ignore */ }
+  }
+
+  function restoreSourceEl(source) {
+    if (!source.dataset || typeof source.dataset.steadySrcset === 'undefined') return;
+    source.setAttribute('srcset', source.dataset.steadySrcset);
+    delete source.dataset.steadySrcset;
+  }
+
+  function restoreImgEl(img) {
+    if (!img.dataset || !img.dataset.steadyFrozen) return;
+    if (img.dataset.steadyFrozen === '1') {
+      if (typeof img.dataset.steadyOrigSrcset !== 'undefined') {
+        img.setAttribute('srcset', img.dataset.steadyOrigSrcset);
+      }
+      if (typeof img.dataset.steadyOrigSrc !== 'undefined') {
+        img.src = img.dataset.steadyOrigSrc;
+      }
+    }
+    delete img.dataset.steadyFrozen;
+    delete img.dataset.steadyOrigSrc;
+    delete img.dataset.steadyOrigSrcset;
+    delete img.dataset.steadyCors;
+    delete img.dataset.steadyWebpChecked;
+  }
+
   function resumePausedMedia(scope) {
     var media = scope.querySelectorAll('video[data-steady-paused], audio[data-steady-paused]');
-    for (var i = 0; i < media.length; i++) {
-      media[i].removeAttribute('data-steady-paused');
-      try {
-        var p = media[i].play();
-        if (p && p.catch) p.catch(function () { /* autoplay policy may block */ });
-      } catch (e) { /* ignore */ }
-    }
+    for (var i = 0; i < media.length; i++) restoreMediaEl(media[i]);
   }
 
   function unfreezeImages(scope) {
     var i;
     var sources = scope.querySelectorAll('source[data-steady-srcset]');
-    for (i = 0; i < sources.length; i++) {
-      sources[i].setAttribute('srcset', sources[i].dataset.steadySrcset);
-      delete sources[i].dataset.steadySrcset;
-    }
-
+    for (i = 0; i < sources.length; i++) restoreSourceEl(sources[i]);
     var imgs = scope.querySelectorAll('img[data-steady-frozen]');
-    for (i = 0; i < imgs.length; i++) {
-      var img = imgs[i];
-      if (img.dataset.steadyFrozen === '1') {
-        if (typeof img.dataset.steadyOrigSrcset !== 'undefined') {
-          img.setAttribute('srcset', img.dataset.steadyOrigSrcset);
-        }
-        if (typeof img.dataset.steadyOrigSrc !== 'undefined') {
-          img.src = img.dataset.steadyOrigSrc;
-        }
-      }
-      delete img.dataset.steadyFrozen;
-      delete img.dataset.steadyOrigSrc;
-      delete img.dataset.steadyOrigSrcset;
-      delete img.dataset.steadyCors;
-      delete img.dataset.steadyWebpChecked;
+    for (i = 0; i < imgs.length; i++) restoreImgEl(imgs[i]);
+  }
+
+  // Run fn for every open shadow root: the connected tree plus every root in
+  // the registry (whose hosts may be detached right now).
+  function forAllRoots(fn) {
+    var seen = typeof WeakSet === 'function' ? new WeakSet() : null;
+    var roots = collectOpenRoots(document, []);
+    for (var i = 0; i < roots.length; i++) {
+      if (seen) seen.add(roots[i]);
+      fn(roots[i]);
     }
+    regEach(knownRoots, function (root) {
+      if (seen && seen.has(root)) return;
+      fn(root);
+    });
   }
 
-  function restoreScope(scope) {
-    resumePausedMedia(scope);
-    unfreezeImages(scope);
-  }
-
-  // Run fn against the document and every open shadow root.
   function forAllScopes(fn) {
     fn(document);
-    var roots = collectOpenRoots(document, []);
-    for (var i = 0; i < roots.length; i++) fn(roots[i]);
+    forAllRoots(fn);
+  }
+
+  // Feature-level release: scope queries catch the connected tree, the
+  // registries catch everything we mutated that is detached right now.
+  function releasePausedMedia() {
+    forAllScopes(resumePausedMedia);
+    regEach(pausedReg, restoreMediaEl);
+  }
+
+  function releaseFrozenImages() {
+    forAllScopes(unfreezeImages);
+    regEach(sourceReg, restoreSourceEl);
+    regEach(frozenReg, restoreImgEl);
   }
 
   function restoreAll() {
-    restoreScope(document);
-    var roots = collectOpenRoots(document, []);
-    for (var i = 0; i < roots.length; i++) {
-      unadoptCalmSheet(roots[i]);
-      restoreScope(roots[i]);
-    }
+    releasePausedMedia();
+    releaseFrozenImages();
+    // Dampen may keep the sheet alive on excepted sites; only unadopt when
+    // the composed text is genuinely empty.
+    var keepSheet = composeCss() !== '';
+    forAllRoots(function (root) {
+      if (!keepSheet) unadoptCalmSheet(root);
+    });
   }
 
   // ---- Sweep + MutationObserver ----------------------------------------------
@@ -588,7 +750,7 @@
     if (state !== 'calm') return;
     pauseMedia(document);
     freezeImagesIn(document);
-    processShadowRoots(document);
+    processShadowRoots(document, true);
   }
 
   function handleMutations(mutations) {
@@ -596,12 +758,20 @@
     for (var i = 0; i < mutations.length; i++) {
       var m = mutations[i];
       if (m.type === 'childList') {
+        // pages that rewrite documentElement.innerHTML (or prune <head>) can
+        // silently take our style/overlays with them; heal on removal
+        for (var k = 0; k < m.removedNodes.length; k++) {
+          var rn = m.removedNodes[k];
+          if (rn.nodeType !== 1 || !rn.id) continue;
+          if (rn.id === STYLE_ID) injectStyle();
+          else if (rn.id === 'steady-soften' || rn.id === 'steady-panic') applyComfort(lastSettings);
+        }
         for (var j = 0; j < m.addedNodes.length; j++) {
           var node = m.addedNodes[j];
           if (node.nodeType !== 1) continue; // elements only
           pauseMedia(node);
           freezeImagesIn(node);
-          processShadowRoots(node);
+          processShadowRoots(node, true);
         }
       } else if (m.type === 'attributes') {
         var t = m.target;
@@ -648,16 +818,25 @@
   document.addEventListener('DOMContentLoaded', sweepAll);
   window.addEventListener('load', sweepAll);
 
-  // The main-world attachShadow patch fires this hint whenever any shadow root
-  // is created (it handles the CSS itself, including closed roots; this world
-  // sweeps open roots for media and images). Debounced: component-heavy pages
-  // attach hundreds of roots during boot.
+  // The main-world attachShadow patch dispatches this hint FROM THE HOST for
+  // connected hosts (detached hosts are covered by the childList observer the
+  // moment they are inserted), so the flush below is scoped to the new roots
+  // instead of rescanning the whole document. Debounced: component-heavy
+  // pages attach hundreds of roots during boot.
+  var pendingShadowHosts = [];
   var shadowHintTimer = null;
-  document.addEventListener('steady-shadow', function () {
-    if (state !== 'calm' || shadowHintTimer) return;
+  document.addEventListener('steady-shadow', function (e) {
+    if (state !== 'calm') return;
+    if (e.target && e.target.nodeType === 1) pendingShadowHosts.push(e.target);
+    if (shadowHintTimer) return;
     shadowHintTimer = setTimeout(function () {
       shadowHintTimer = null;
-      if (state === 'calm') processShadowRoots(document);
+      var hosts = pendingShadowHosts.splice(0);
+      if (state !== 'calm') return;
+      for (var i = 0; i < hosts.length; i++) {
+        var sr = hosts[i].shadowRoot; // null for closed roots: main world owns those
+        if (sr) processShadowRoots(sr, true);
+      }
     }, 120);
   });
 

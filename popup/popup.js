@@ -135,32 +135,29 @@ function render() {
   }
 }
 
-function save() {
-  return new Promise(function (resolve) {
-    chrome.storage.local.set(
-      { enabled: state.settings.enabled, allowed: state.settings.allowed },
-      resolve
-    );
-  });
-}
-
 function toggleGlobal() {
   state.settings.enabled = !(state.settings.enabled !== false);
   render();
-  save();
+  // write ONLY this key: a wholesale snapshot write would clobber concurrent
+  // changes from the options page or keyboard commands
+  chrome.storage.local.set({ enabled: state.settings.enabled });
 }
 
 function toggleSite() {
   if (state.settings.enabled === false || state.kind !== 'site') return; // disabled
-  var allowed = state.settings.allowed || {};
-  if (allowed[state.host]) {
-    delete allowed[state.host];
-  } else {
-    allowed[state.host] = true;
-  }
-  state.settings.allowed = allowed;
-  render();
-  save();
+  // fresh read-modify-write: the options page or Alt+Shift+S may have changed
+  // the exceptions map since this popup opened
+  chrome.storage.local.get({ allowed: {} }, function (stored) {
+    var allowed = stored.allowed || {};
+    if (allowed[state.host]) {
+      delete allowed[state.host];
+    } else {
+      allowed[state.host] = true;
+    }
+    state.settings.allowed = allowed;
+    render();
+    chrome.storage.local.set({ allowed: allowed });
+  });
 }
 
 els.global.addEventListener('click', toggleGlobal);

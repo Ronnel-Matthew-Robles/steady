@@ -379,27 +379,91 @@ async function runScenario(loadExtension, port) {
           "document.getElementById('dampen-help').textContent");
         const comfortDefaults = await cdp.eval(page, `({
           soften: !!document.getElementById('steady-soften'),
-          dampen: !!document.getElementById('steady-dampen-style'),
+          dampen: (document.getElementById('steady-style') || { textContent: '' }).textContent.indexOf('brightness(0.8)') !== -1,
           panic: !!document.getElementById('steady-panic'),
         })`);
+        // soften+dampen first (panic off): panic would supersede soften
         await cdp.eval(swSession,
-          "new Promise(r => chrome.storage.local.set({ dampen: true, soften: { enabled: true, level: 50 }, panic: true }, r))");
+          "new Promise(r => chrome.storage.local.set({ dampen: true, soften: { enabled: true, level: 50 } }, r))");
         await sleep(800);
         const comfortOn = await cdp.eval(page, `({
           videoFilter: getComputedStyle(document.getElementById('video')).filter,
           soften: (document.getElementById('steady-soften') || {}).style ? document.getElementById('steady-soften').style.backdropFilter : '',
+        })`);
+        // now panic: overlay appears AND soften steps aside (never two
+        // full-viewport backdrop-filter passes at once)
+        await cdp.eval(swSession,
+          "new Promise(r => chrome.storage.session.set({ panic: true }, r))");
+        await sleep(800);
+        const panicOn = await cdp.eval(page, `({
           panic: !!document.getElementById('steady-panic'),
+          softenGone: !document.getElementById('steady-soften'),
         })`);
         await cdp.eval(swSession,
-          "new Promise(r => chrome.storage.local.set({ dampen: false, soften: { enabled: false, level: 50 }, panic: false }, r))");
+          "new Promise(r => chrome.storage.local.set({ dampen: false, soften: { enabled: false, level: 50 } }, r))");
+        await cdp.eval(swSession,
+          "new Promise(r => chrome.storage.session.set({ panic: false }, r))");
         await sleep(800);
         const comfortOff = await cdp.eval(page, `({
           soften: !!document.getElementById('steady-soften'),
-          dampen: !!document.getElementById('steady-dampen-style'),
+          dampen: (document.getElementById('steady-style') || { textContent: '' }).textContent.indexOf('brightness(0.8)') !== -1,
           panic: !!document.getElementById('steady-panic'),
           videoFilter: getComputedStyle(document.getElementById('video')).filter,
         })`);
-        toggle.comfort = { dampenCopy, comfortDefaults, comfortOn, comfortOff };
+        toggle.comfort = { dampenCopy, comfortDefaults, comfortOn, panicOn, comfortOff };
+
+        // The options tab above stole focus; the granular sampling below
+        // needs the harness page rendering (headless throttles background
+        // tabs hard enough to stall animation frames).
+        await cdp.send('Page.bringToFront', {}, page);
+        await sleep(300);
+
+        // Live granular toggles beyond images: media release and the
+        // animations on/off/on round trip.
+        await cdp.eval(swSession,
+          "new Promise(r => chrome.storage.local.set({ features: { animations: true, media: false, images: true, scroll: true } }, r))");
+        await sleep(900);
+        const mediaOffPlaying = await cdp.eval(page,
+          "!document.getElementById('video').paused");
+        await cdp.eval(swSession,
+          "new Promise(r => chrome.storage.local.set({ features: { animations: false, media: true, images: true, scroll: true } }, r))");
+        await sleep(900);
+        const animOff = await motionSample();
+        const animOffHasStep = await cdp.eval(page,
+          "(document.getElementById('steady-style') || { textContent: '' }).textContent.indexOf('step-start') !== -1");
+        await cdp.eval(swSession,
+          "new Promise(r => chrome.storage.local.set({ features: { animations: true, media: true, images: true, scroll: true } }, r))");
+        await sleep(900);
+        const animBackOn = await motionSample();
+        toggle.granular = {
+          mediaOffPlaying, animOffMoving: animOff.spinnerMoving,
+          animOffHasStep, animBackOnMoving: animBackOn.spinnerMoving,
+        };
+
+        // Fresh-load regression: persisted animations=false must gate the
+        // SHADOW sheet from first paint, not only after a live toggle repairs it.
+        await cdp.eval(swSession,
+          "new Promise(r => chrome.storage.local.set({ features: { animations: false, media: true, images: true, scroll: true } }, r))");
+        const { targetId: p2id } = await cdp.send('Target.createTarget',
+          { url: `http://127.0.0.1:${port}/harness.html` });
+        const p2 = await cdp.attach(p2id);
+        await cdp.send('Page.bringToFront', {}, p2);
+        await sleep(2500);
+        const FRESH = `(function () {
+          var open = document.getElementById('sd-open').shadowRoot;
+          return {
+            t: getComputedStyle(open.querySelector('.s')).transform,
+            gif: open.querySelector('img').src.startsWith('data:image/png'),
+          };
+        })()`;
+        const fr1 = await cdp.eval(p2, FRESH);
+        await sleep(350);
+        const fr2 = await cdp.eval(p2, FRESH);
+        toggle.freshLoad = { shadowMoving: fr1.t !== fr2.t, gifFrozen: fr2.gif };
+        await cdp.send('Target.closeTarget', { targetId: p2id });
+        await cdp.eval(swSession,
+          "new Promise(r => chrome.storage.local.set({ features: { animations: true, media: true, images: true, scroll: true } }, r))");
+        await sleep(400);
       }
     }
     return { top, bottom, toggle, motion, caroDelta, shadow, spa, frameSame, frameCross };
@@ -536,7 +600,9 @@ try {
       check('comfort: soften overlay applies backdrop-filter',
         cf.comfortOn.soften.includes('brightness') && cf.comfortOn.soften.includes('saturate'),
         cf.comfortOn.soften);
-      check('comfort: panic dim overlay present when toggled', cf.comfortOn.panic, cf.comfortOn.panic);
+      check('comfort: panic dim overlay present when toggled', cf.panicOn.panic, JSON.stringify(cf.panicOn));
+      check('comfort: panic supersedes soften (no stacked backdrop-filters)',
+        cf.panicOn.softenGone, JSON.stringify(cf.panicOn));
       check('comfort: everything removed cleanly when toggled off',
         !cf.comfortOff.soften && !cf.comfortOff.dampen && !cf.comfortOff.panic && cf.comfortOff.videoFilter === 'none',
         JSON.stringify(cf.comfortOff));
@@ -544,6 +610,20 @@ try {
         /not a guarantee of safety/i.test(cf.dampenCopy), cf.dampenCopy.slice(0, 120));
     } else {
       check('comfort: checks ran', false, 'comfort block missing');
+    }
+    const gr = ext.toggle.granular;
+    if (gr) {
+      check('granular: media off resumes the paused video live', gr.mediaOffPlaying, gr.mediaOffPlaying);
+      check('granular: animations off releases CSS and the spinner moves',
+        gr.animOffMoving && !gr.animOffHasStep,
+        `moving=${gr.animOffMoving} hasStep=${gr.animOffHasStep}`);
+      check('granular: animations back on stills the spinner again', !gr.animBackOnMoving, gr.animBackOnMoving);
+    }
+    const fl = ext.toggle.freshLoad;
+    if (fl) {
+      check('fresh load with animations=false: shadow spinner MOVES (sheet gated at seed)',
+        fl.shadowMoving, fl.shadowMoving);
+      check('fresh load with animations=false: gif still frozen (images on)', fl.gifFrozen, fl.gifFrozen);
     }
   } else {
     check('toggle: service worker reachable', false, 'service worker target not found');

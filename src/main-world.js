@@ -25,6 +25,7 @@
   // them. calmActive() runs inside the animate() wrapper, so it must never
   // call page-overridable APIs unguarded or throw into page code.
   var nativeHasAttribute = Element.prototype.hasAttribute;
+  var nativeGetAttribute = Element.prototype.getAttribute;
   var docElGetter = null;
   try {
     var docElDesc = Object.getOwnPropertyDescriptor(Document.prototype, 'documentElement');
@@ -35,12 +36,26 @@
     return docElGetter ? docElGetter.call(document) : document.documentElement;
   }
 
+  // The flag's presence gates stylesheet adoption (scroll or dampen rules may
+  // still apply); the 'a' character in its value gates WAAPI retiming, so
+  // turning the animations feature off no longer strips scroll/dampen CSS
+  // from closed shadow roots.
   function calmActive() {
     try {
       var de = root();
       return !!(de && nativeHasAttribute.call(de, 'data-steady-calm'));
     } catch (e) {
       return false; // degrade to "not calming"; never break the page's animate()
+    }
+  }
+
+  function waapiActive() {
+    try {
+      var de = root();
+      if (!de || !nativeHasAttribute.call(de, 'data-steady-calm')) return false;
+      return (nativeGetAttribute.call(de, 'data-steady-calm') || '').indexOf('a') >= 0;
+    } catch (e) {
+      return false;
     }
   }
 
@@ -194,13 +209,19 @@
       var styleEl = document.getElementById('steady-style');
       if (styleEl && calmSheet) calmSheet.replaceSync(styleEl.textContent);
     } catch (e) { /* ignore */ }
-    try {
-      document.getAnimations().forEach(function (anim) {
-        if (isWaapi(anim)) calmOne(anim);
-      });
-    } catch (e) { /* getAnimations unsupported */ }
+    var waapi = waapiActive();
+    if (waapi) {
+      try {
+        document.getAnimations().forEach(function (anim) {
+          if (isWaapi(anim)) calmOne(anim);
+        });
+      } catch (e) { /* getAnimations unsupported */ }
+    } else {
+      restoreAnimations(); // animations feature off, but sheets stay adopted
+    }
     forEachShadowRoot(function (sr) {
       adoptInto(sr);
+      if (!waapi) return;
       try {
         sr.getAnimations().forEach(function (anim) {
           if (isWaapi(anim)) calmOne(anim);
@@ -209,7 +230,7 @@
     });
   }
 
-  function restoreAll() {
+  function restoreAnimations() {
     if (calmed) {
       calmed.forEach(function (ref) {
         var anim = ref.deref();
@@ -220,12 +241,16 @@
     try {
       document.getAnimations().forEach(restoreOne); // fallback sweep
     } catch (e) { /* ignore */ }
+  }
+
+  function restoreAll() {
+    restoreAnimations();
     forEachShadowRoot(unadoptFrom);
   }
 
   Element.prototype.animate = function animate() {
     var anim = nativeAnimate.apply(this, arguments);
-    if (calmActive() && isWaapi(anim)) calmOne(anim);
+    if (waapiActive() && isWaapi(anim)) calmOne(anim);
     return anim;
   };
 
@@ -238,7 +263,7 @@
       if (typeof native !== 'function') return;
       Animation.prototype[name] = function () {
         var result = native.apply(this, arguments);
-        if (calmActive() && isWaapi(this)) calmOne(this);
+        if (waapiActive() && isWaapi(this)) calmOne(this);
         return result;
       };
     });
@@ -255,7 +280,12 @@
       try {
         if (shadowRoots) shadowRoots.add(new WeakRef(sr));
         if (calmActive()) adoptInto(sr);
-        document.dispatchEvent(new CustomEvent('steady-shadow'));
+        // Hint dispatched FROM the host so the isolated world can sweep just
+        // this root instead of rescanning the document. Detached hosts skip
+        // the hint: the childList observer covers them on insertion.
+        if (this.isConnected) {
+          this.dispatchEvent(new CustomEvent('steady-shadow', { bubbles: true, composed: true }));
+        }
       } catch (e) { /* never break the page's attachShadow */ }
       return sr;
     };

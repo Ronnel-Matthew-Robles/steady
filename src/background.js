@@ -18,6 +18,13 @@ function normalizeHost(host) {
 
 var TOP_HOST_PREFIX = 'topHost:';
 
+// Panic-dim state lives in storage.session (clears on browser restart, so a
+// forgotten panic never greets the user with a mysteriously dim web next
+// morning). Content scripts can only read it with this access level.
+if (chrome.storage.session && chrome.storage.session.setAccessLevel) {
+  chrome.storage.session.setAccessLevel({ accessLevel: 'TRUSTED_AND_UNTRUSTED_CONTEXTS' });
+}
+
 // Calm slate, never an alarming red.
 var BADGE_COLOR = '#52606e';
 
@@ -116,8 +123,9 @@ chrome.commands.onCommand.addListener(function (command) {
     return;
   }
   if (command === 'panic-dim') {
-    chrome.storage.local.get({ panic: false }, function (s) {
-      chrome.storage.local.set({ panic: !s.panic });
+    if (!chrome.storage.session) return;
+    chrome.storage.session.get({ panic: false }, function (s) {
+      chrome.storage.session.set({ panic: !s.panic });
     });
     return;
   }
