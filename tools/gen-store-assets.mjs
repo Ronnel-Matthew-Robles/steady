@@ -75,6 +75,7 @@ try {
     { file: 'screenshot-2-harness.png', url: `http://127.0.0.1:${port}/harness.html`, w: 1280, h: 800, wait: 3000, scroll: 1000 },
     { file: "screenshot-3-popup.png", url: `chrome-extension://${extId}/tools/store/popup-stage.html`, w: 1280, h: 800, wait: 2800 },
     { file: 'tile-small.png', url: `chrome-extension://${extId}/tools/store/tile.html`, w: 440, h: 280, wait: 500 },
+    { file: 'tile-marquee.png', url: `chrome-extension://${extId}/tools/store/marquee.html`, w: 1400, h: 560, wait: 600 },
   ];
 
   mkdirSync(OUT_DIR, { recursive: true });

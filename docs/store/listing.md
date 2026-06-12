@@ -84,6 +84,7 @@ and neutralizes parallax, while keeping pages fully interactive.
 - screenshot-2-harness.png (1280x800): the calmed test page with status readouts
 - screenshot-3-popup.png (1280x800): the popup controls in context
 - tile-small.png (440x280): promo tile
+- tile-marquee.png (1400x560): marquee promo tile
 - icon-128.png: already in icons/
 
 ## Build

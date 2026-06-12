@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <style>
+    * { margin: 0; animation: none !important; transition: none !important; box-sizing: border-box; }
+    html, body { width: 1400px; height: 560px; overflow: hidden; }
+    body {
+      background: linear-gradient(135deg, #36455a 0%, #3b4a5a 45%, #52606e 100%);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 110px;
+      font-family: Georgia, 'Iowan Old Style', 'Palatino Linotype', serif;
+    }
+    .brand { max-width: 640px; }
+    .mark-row { display: flex; align-items: center; gap: 22px; margin-bottom: 26px; }
+    h1 { color: #eef2f5; font-size: 92px; font-weight: 700; letter-spacing: 0.5px; line-height: 1; }
+    .tag {
+      color: #c7d2db;
+      font-size: 30px;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      margin-top: 18px;
+    }
+    .tag strong { color: #eef2f5; font-weight: 600; }
+
+    .proof {
+      background: #ffffff;
+      border-radius: 22px;
+      padding: 30px 34px 24px;
+      box-shadow: 0 30px 70px rgba(15, 23, 32, 0.45);
+      text-align: center;
+    }
+    .stage {
+      background: #f4f6f8;
+      border: 1px solid #e3e9ee;
+      border-radius: 14px;
+      padding: 26px 30px;
+    }
+    .stage img {
+      display: block;
+      width: 360px;
+      height: 216px;
+      image-rendering: pixelated;
+    }
+    .caption {
+      margin-top: 18px;
+      color: #1f2933;
+      font-size: 21px;
+      font-weight: 600;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    }
+    .caption .dot { color: #2e6b34; }
+  </style>
+</head>
+<body>
+  <div class="brand">
+    <div class="mark-row">
+      <svg width="84" height="84" viewBox="0 0 34 34" aria-hidden="true">
+        <rect x="1" y="1" width="32" height="32" rx="8" fill="#eef2f5"/>
+        <rect x="8" y="15.5" width="18" height="3" rx="1.5" fill="#3b4a5a"/>
+      </svg>
+      <h1>Steady</h1>
+    </div>
+    <p class="tag">
+      The web, holding still. Animations settle, autoplay pauses, GIFs freeze,
+      parallax stops drifting, on <strong>every site</strong>, while pages stay
+      fully usable.
+    </p>
+  </div>
+  <div class="proof">
+    <div class="stage"><img src="../../assets/onboarding-still.png" alt=""></div>
+    <p class="caption"><span class="dot">&#9679;</span> This GIF is frozen on its first frame.</p>
+  </div>
+</body>
+</html>
