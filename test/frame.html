@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Steady cross-origin frame fixture</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 10px; }
+    .s {
+      width: 28px; height: 28px; border-radius: 50%;
+      border: 4px solid #d3dae0; border-top-color: #3a6ea5;
+      animation: sspin 1s linear infinite;
+    }
+    @keyframes sspin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div class="s"></div>
+  <img src="animated.gif" width="48" height="48" alt="">
+</body>
+</html>

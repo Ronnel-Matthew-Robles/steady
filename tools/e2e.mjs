@@ -190,6 +190,73 @@ async function runScenario(loadExtension, port) {
     await sleep(4000);
     const caroDelta = (await cdp.eval(page, CARO)) - caroStart;
 
+    // Shadow DOM: spinners inside open, declarative, and closed roots.
+    const SHADOW = `(function () {
+      var open = document.getElementById('sd-open').shadowRoot;
+      var decl = document.getElementById('sd-decl').shadowRoot;
+      var closed = window.__steadyClosedRoot;
+      return {
+        open: getComputedStyle(open.querySelector('.s')).transform,
+        decl: decl ? getComputedStyle(decl.querySelector('.s')).transform : 'no-root',
+        closed: closed ? getComputedStyle(closed.querySelector('.s')).transform : 'no-root',
+        gifFrozen: open.querySelector('img').src.startsWith('data:image/png'),
+      };
+    })()`;
+    const shadowA = await cdp.eval(page, SHADOW);
+    await sleep(350);
+    const shadowB = await cdp.eval(page, SHADOW);
+    const shadow = {
+      openMoving: shadowA.open !== shadowB.open,
+      declMoving: shadowA.decl !== shadowB.decl,
+      closedMoving: shadowA.closed !== shadowB.closed,
+      gifFrozen: shadowB.gifFrozen,
+      got: JSON.stringify(shadowB),
+    };
+
+    // SPA route change: brand-new spinner + GIF arrive via pushState swap.
+    await cdp.eval(page, 'window.__spaNavigate()');
+    await sleep(1500);
+    const SPA = `({
+      t: getComputedStyle(document.getElementById('spa-spinner')).transform,
+      gif: document.getElementById('spa-gif').src.slice(0, 30),
+    })`;
+    const spaA = await cdp.eval(page, SPA);
+    await sleep(350);
+    const spaB = await cdp.eval(page, SPA);
+    const spa = {
+      moving: spaA.t !== spaB.t,
+      gifFrozen: spaB.gif.startsWith('data:image/png'),
+      got: JSON.stringify(spaB),
+    };
+
+    // Same-origin (srcdoc) frame: reachable through contentDocument.
+    const FRAME_SAME = `(function () {
+      var d = document.getElementById('frame-same').contentDocument;
+      if (!d || !d.querySelector('.s')) return null;
+      return { t: getComputedStyle(d.querySelector('.s')).transform, gif: d.querySelector('img').src.slice(0, 30) };
+    })()`;
+    const fsA = await cdp.eval(page, FRAME_SAME);
+    await sleep(350);
+    const fsB = await cdp.eval(page, FRAME_SAME);
+    const frameSame = fsA && fsB
+      ? { moving: fsA.t !== fsB.t, gifFrozen: fsB.gif.startsWith('data:image/png'), got: JSON.stringify(fsB) }
+      : null;
+
+    // Cross-origin frame (localhost vs 127.0.0.1): an OOPIF with its own target.
+    let frameCross = null;
+    {
+      const { targetInfos } = await cdp.send('Target.getTargets');
+      const fc = targetInfos.find((t) => t.url.includes('/frame.html'));
+      if (fc) {
+        const fcs = await cdp.attach(fc.targetId);
+        const FRAME_EVAL = `({ t: getComputedStyle(document.querySelector('.s')).transform, gif: document.querySelector('img').src.slice(0, 30) })`;
+        const fcA = await cdp.eval(fcs, FRAME_EVAL);
+        await sleep(350);
+        const fcB = await cdp.eval(fcs, FRAME_EVAL);
+        frameCross = { moving: fcA.t !== fcB.t, gifFrozen: fcB.gif.startsWith('data:image/png'), got: JSON.stringify(fcB) };
+      }
+    }
+
     // Scroll the reveal section into view (the page ends with a 90vh spacer,
     // so scrolling to the absolute bottom would overshoot past it). The page
     // must be frontmost first: headless Chrome throttles rendering of
@@ -264,7 +331,7 @@ async function runScenario(loadExtension, port) {
         })`);
       }
     }
-    return { top, bottom, toggle, motion, caroDelta };
+    return { top, bottom, toggle, motion, caroDelta, shadow, spa, frameSame, frameCross };
   } finally {
     chrome.kill('SIGKILL');
     await sleep(300);
@@ -298,6 +365,13 @@ try {
   check('baseline: parallax bg fixed', base.top.parallaxAttach === 'fixed', base.top.parallaxAttach);
   check('baseline: reveal-on-scroll works', base.bottom.reveal1 === '1' && base.bottom.reveal2 === '1',
     `${base.bottom.reveal1},${base.bottom.reveal2}`);
+  check('baseline: shadow spinners move (open/decl/closed)',
+    base.shadow.openMoving && base.shadow.declMoving && base.shadow.closedMoving, base.shadow.got);
+  check('baseline: SPA-injected spinner moves, gif animated', base.spa.moving && !base.spa.gifFrozen, base.spa.got);
+  check('baseline: same-origin frame spinner moves', !!base.frameSame && base.frameSame.moving,
+    base.frameSame ? base.frameSame.got : 'frame unreachable');
+  check('baseline: cross-origin frame spinner moves', !!base.frameCross && base.frameCross.moving,
+    base.frameCross ? base.frameCross.got : 'frame target not found');
 
   // Steady behavior.
   check('steady: style injected', ext.top.styleInjected, ext.top.styleInjected);
@@ -308,6 +382,18 @@ try {
     ext.motion.revAt === 'matrix(1, 0, 0, 1, 0, 0)', ext.motion.revAt);
   check('steady: animation duration preserved (1s, not shortened)', ext.top.spinnerDur === '1s', ext.top.spinnerDur);
   check('steady: carousel cadence NOT accelerated (1-5 advances in 4s)', ext.caroDelta >= 1 && ext.caroDelta <= 5, ext.caroDelta);
+  check('steady: open shadow root spinner holds still', !ext.shadow.openMoving, ext.shadow.got);
+  check('steady: declarative shadow root spinner holds still', !ext.shadow.declMoving, ext.shadow.got);
+  check('steady: CLOSED shadow root spinner holds still', !ext.shadow.closedMoving, ext.shadow.got);
+  check('steady: gif inside open shadow root frozen', ext.shadow.gifFrozen, ext.shadow.got);
+  check('steady: SPA-injected spinner arrives calmed', !ext.spa.moving, ext.spa.got);
+  check('steady: SPA-injected gif arrives frozen', ext.spa.gifFrozen, ext.spa.got);
+  check('steady: same-origin frame calmed (spinner + gif)',
+    !!ext.frameSame && !ext.frameSame.moving && ext.frameSame.gifFrozen,
+    ext.frameSame ? ext.frameSame.got : 'frame unreachable');
+  check('steady: cross-origin frame calmed (spinner + gif)',
+    !!ext.frameCross && !ext.frameCross.moving && ext.frameCross.gifFrozen,
+    ext.frameCross ? ext.frameCross.got : 'frame target not found');
   check('steady: autoplay video paused', ext.top.videoPaused, ext.top.videoPaused);
   check('steady: autoplay audio paused', ext.top.audioPaused, ext.top.audioPaused);
   check('steady: gif frozen to png data url', ext.top.gifSrc.startsWith('data:image/png'), ext.top.gifSrc);

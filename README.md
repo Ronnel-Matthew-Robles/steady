@@ -101,6 +101,11 @@ restored, and media that Steady paused is resumed (best effort), all without a r
 - **Animated images are detected by URL.** GIFs are frozen on sight; `.webp` files are
   checked for the animation flag first so static ones are left untouched. Animated images
   served from extension-less URLs (some CDN image proxies) are not detected.
+- **Closed shadow roots get the calm CSS but not media handling.** Steady adopts its
+  stylesheet into every shadow root at creation (open or closed), so CSS animation inside
+  closed roots is stilled. But no extension can ever obtain a reference to a closed
+  root's contents, so autoplaying media and GIFs inside them cannot be paused or frozen.
+  Declarative closed roots (`<template shadowrootmode="closed">`) are fully out of reach.
 - **Per-site exceptions follow the top page.** Frames inside a page ask Steady for the top
   page's hostname and follow its setting; in rare early-load races a frame may briefly fall
   back to its own host.

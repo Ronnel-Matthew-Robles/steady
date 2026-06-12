@@ -29,6 +29,7 @@
   var lastGesture = 0;   // timestamp of the most recent trusted user gesture
   var topHost = null;    // top page's hostname (subframes only; null until known)
   var observer = null;
+  var observedRoots = null; // WeakSet of shadow roots the observer already watches
   var styleEl = null;
 
   // ---- Calm stylesheet (synchronous, pre-paint) ----------------------------
@@ -349,11 +350,89 @@
     }
   }
 
+  // ---- Shadow DOM traversal ----------------------------------------------------
+  //
+  // querySelectorAll never pierces shadow roots, so media pausing, image
+  // freezing, and restore must walk OPEN roots explicitly. The calm CSS for
+  // shadow roots (including CLOSED ones, which this world can never see) is
+  // handled by the main-world attachShadow patch in src/main-world.js, which
+  // also dispatches a 'steady-shadow' hint event consumed below.
+
+  // Calm sheet for OPEN shadow roots. The main-world attachShadow patch
+  // covers imperative roots (open and closed) at creation; this covers
+  // declarative shadow DOM (<template shadowrootmode>), which never calls
+  // attachShadow. A duplicate adoption from both worlds is harmless: the
+  // rules are identical.
+  var shadowSheet = null;
+  function getShadowSheet() {
+    if (shadowSheet) return shadowSheet;
+    if (typeof CSSStyleSheet !== 'function') return null;
+    try {
+      shadowSheet = new CSSStyleSheet();
+      shadowSheet.replaceSync(CALM_CSS);
+    } catch (e) {
+      shadowSheet = null;
+    }
+    return shadowSheet;
+  }
+
+  function adoptCalmSheet(root) {
+    try {
+      var sheet = getShadowSheet();
+      if (!sheet) return;
+      var current = root.adoptedStyleSheets;
+      for (var i = 0; i < current.length; i++) if (current[i] === sheet) return;
+      root.adoptedStyleSheets = Array.prototype.slice.call(current).concat(sheet);
+    } catch (e) { /* ignore */ }
+  }
+
+  function unadoptCalmSheet(root) {
+    try {
+      if (!shadowSheet) return;
+      root.adoptedStyleSheets = Array.prototype.filter.call(
+        root.adoptedStyleSheets,
+        function (s) { return s !== shadowSheet; }
+      );
+    } catch (e) { /* ignore */ }
+  }
+
+  function collectOpenRoots(scope, acc) {
+    if (!scope || !scope.querySelectorAll) return acc;
+    if (scope.shadowRoot) {
+      acc.push(scope.shadowRoot);
+      collectOpenRoots(scope.shadowRoot, acc);
+    }
+    var els = scope.querySelectorAll('*');
+    for (var i = 0; i < els.length; i++) {
+      var sr = els[i].shadowRoot;
+      if (sr) {
+        acc.push(sr);
+        collectOpenRoots(sr, acc);
+      }
+    }
+    return acc;
+  }
+
+  // Observe + sweep every open shadow root under scope (and scope itself).
+  function processShadowRoots(scope) {
+    var roots = collectOpenRoots(scope, []);
+    for (var i = 0; i < roots.length; i++) {
+      var root = roots[i];
+      if (observer && observedRoots && !observedRoots.has(root)) {
+        observedRoots.add(root);
+        try { observer.observe(root, OBSERVER_OPTS); } catch (e) { /* ignore */ }
+      }
+      adoptCalmSheet(root);
+      pauseMedia(root);
+      freezeImagesIn(root);
+    }
+  }
+
   // ---- Restore (per-site exception / global off) -----------------------------
 
-  function restoreAll() {
+  function restoreScope(scope) {
     var i;
-    var media = document.querySelectorAll('video[data-steady-paused], audio[data-steady-paused]');
+    var media = scope.querySelectorAll('video[data-steady-paused], audio[data-steady-paused]');
     for (i = 0; i < media.length; i++) {
       media[i].removeAttribute('data-steady-paused');
       try {
@@ -362,13 +441,13 @@
       } catch (e) { /* ignore */ }
     }
 
-    var sources = document.querySelectorAll('source[data-steady-srcset]');
+    var sources = scope.querySelectorAll('source[data-steady-srcset]');
     for (i = 0; i < sources.length; i++) {
       sources[i].setAttribute('srcset', sources[i].dataset.steadySrcset);
       delete sources[i].dataset.steadySrcset;
     }
 
-    var imgs = document.querySelectorAll('img[data-steady-frozen]');
+    var imgs = scope.querySelectorAll('img[data-steady-frozen]');
     for (i = 0; i < imgs.length; i++) {
       var img = imgs[i];
       if (img.dataset.steadyFrozen === '1') {
@@ -387,12 +466,22 @@
     }
   }
 
+  function restoreAll() {
+    restoreScope(document);
+    var roots = collectOpenRoots(document, []);
+    for (var i = 0; i < roots.length; i++) {
+      unadoptCalmSheet(roots[i]);
+      restoreScope(roots[i]);
+    }
+  }
+
   // ---- Sweep + MutationObserver ----------------------------------------------
 
   function sweepAll() {
     if (state !== 'calm') return;
     pauseMedia(document);
     freezeImagesIn(document);
+    processShadowRoots(document);
   }
 
   function handleMutations(mutations) {
@@ -405,6 +494,7 @@
           if (node.nodeType !== 1) continue; // elements only
           pauseMedia(node);
           freezeImagesIn(node);
+          processShadowRoots(node);
         }
       } else if (m.type === 'attributes') {
         var t = m.target;
@@ -425,16 +515,20 @@
     }
   }
 
+  var OBSERVER_OPTS = {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ['src', 'srcset', 'autoplay']
+  };
+
   function startObserver() {
     if (observer) return;
     if (!document.documentElement) return;
     observer = new MutationObserver(handleMutations);
-    observer.observe(document.documentElement, {
-      childList: true,
-      subtree: true,
-      attributes: true,
-      attributeFilter: ['src', 'srcset', 'autoplay']
-    });
+    observer.observe(document.documentElement, OBSERVER_OPTS);
+    // a fresh observer instance watches nothing yet; rediscover shadow roots
+    observedRoots = typeof WeakSet === 'function' ? new WeakSet() : null;
   }
 
   function stopObserver() {
@@ -446,6 +540,19 @@
   // anything parsed while settings were still pending.
   document.addEventListener('DOMContentLoaded', sweepAll);
   window.addEventListener('load', sweepAll);
+
+  // The main-world attachShadow patch fires this hint whenever any shadow root
+  // is created (it handles the CSS itself, including closed roots; this world
+  // sweeps open roots for media and images). Debounced: component-heavy pages
+  // attach hundreds of roots during boot.
+  var shadowHintTimer = null;
+  document.addEventListener('steady-shadow', function () {
+    if (state !== 'calm' || shadowHintTimer) return;
+    shadowHintTimer = setTimeout(function () {
+      shadowHintTimer = null;
+      if (state === 'calm') processShadowRoots(document);
+    }, 120);
+  });
 
   // bfcache restores: storage.onChanged events are not delivered to frozen
   // documents and are not replayed, so re-read settings on every restore.

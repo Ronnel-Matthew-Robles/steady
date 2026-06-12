@@ -131,12 +131,76 @@
     } catch (e) { /* leave it untouched */ }
   }
 
+  // ---- Shadow DOM --------------------------------------------------------------
+  //
+  // Stylesheets never pierce shadow roots, and the isolated world cannot even
+  // see CLOSED ones. This world owns the moment of creation: attachShadow is
+  // patched so every new root (open or closed) adopts the calm stylesheet
+  // before its content first paints, and lands in a registry used for live
+  // toggles and for shadow-scoped WAAPI sweeps (document.getAnimations() does
+  // not return shadow-tree animations; root.getAnimations() does).
+
+  var shadowRoots = typeof WeakRef === 'function' ? new Set() : null;
+  var calmSheet = null;
+
+  function getCalmSheet() {
+    if (calmSheet) return calmSheet;
+    try {
+      // single source of truth: the stylesheet the content script injected
+      var styleEl = document.getElementById('steady-style');
+      if (!styleEl || typeof CSSStyleSheet !== 'function') return null;
+      var sheet = new CSSStyleSheet();
+      sheet.replaceSync(styleEl.textContent);
+      calmSheet = sheet;
+      return sheet;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function adoptInto(shadowRoot) {
+    try {
+      var sheet = getCalmSheet();
+      if (!sheet) return;
+      var current = shadowRoot.adoptedStyleSheets;
+      for (var i = 0; i < current.length; i++) if (current[i] === sheet) return;
+      shadowRoot.adoptedStyleSheets = Array.prototype.slice.call(current).concat(sheet);
+    } catch (e) { /* ignore */ }
+  }
+
+  function unadoptFrom(shadowRoot) {
+    try {
+      if (!calmSheet) return;
+      shadowRoot.adoptedStyleSheets = Array.prototype.filter.call(
+        shadowRoot.adoptedStyleSheets,
+        function (s) { return s !== calmSheet; }
+      );
+    } catch (e) { /* ignore */ }
+  }
+
+  function forEachShadowRoot(fn) {
+    if (!shadowRoots) return;
+    shadowRoots.forEach(function (ref) {
+      var sr = ref.deref();
+      if (!sr) { shadowRoots.delete(ref); return; }
+      fn(sr);
+    });
+  }
+
   function calmAll() {
     try {
       document.getAnimations().forEach(function (anim) {
         if (isWaapi(anim)) calmOne(anim);
       });
     } catch (e) { /* getAnimations unsupported */ }
+    forEachShadowRoot(function (sr) {
+      adoptInto(sr);
+      try {
+        sr.getAnimations().forEach(function (anim) {
+          if (isWaapi(anim)) calmOne(anim);
+        });
+      } catch (e) { /* ignore */ }
+    });
   }
 
   function restoreAll() {
@@ -150,6 +214,7 @@
     try {
       document.getAnimations().forEach(restoreOne); // fallback sweep
     } catch (e) { /* ignore */ }
+    forEachShadowRoot(unadoptFrom);
   }
 
   Element.prototype.animate = function animate() {
@@ -171,6 +236,23 @@
         return result;
       };
     });
+  }
+
+  // Every shadow root adopts the calm stylesheet at the moment of creation,
+  // BEFORE its content first paints, open and closed alike. The isolated
+  // world is hinted so it can sweep open roots for media and images (it
+  // debounces; component-heavy pages attach hundreds of roots during boot).
+  var nativeAttachShadow = Element.prototype.attachShadow;
+  if (typeof nativeAttachShadow === 'function') {
+    Element.prototype.attachShadow = function attachShadow() {
+      var sr = nativeAttachShadow.apply(this, arguments);
+      try {
+        if (shadowRoots) shadowRoots.add(new WeakRef(sr));
+        if (calmActive()) adoptInto(sr);
+        document.dispatchEvent(new CustomEvent('steady-shadow'));
+      } catch (e) { /* never break the page's attachShadow */ }
+      return sr;
+    };
   }
 
   // Track the calm flag. Observing the Document node itself (childList)

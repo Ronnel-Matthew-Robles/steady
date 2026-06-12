@@ -115,6 +115,47 @@
     </section>
 
     <section>
+      <h2>9. Shadow DOM (open, closed, declarative)</h2>
+      <p>
+        Document stylesheets never pierce shadow roots. Each box below hosts a
+        spinner inside a shadow root; under Steady all three must hold still,
+        and the GIF inside the open root must freeze.
+      </p>
+      <div style="display:flex;gap:24px;align-items:center">
+        <div id="sd-open"></div>
+        <div id="sd-closed"></div>
+        <div id="sd-decl"><template shadowrootmode="open"><style>.s{width:28px;height:28px;border-radius:50%;border:4px solid #d3dae0;border-top-color:#3a6ea5;animation:sspin 1s linear infinite}@keyframes sspin{to{transform:rotate(360deg)}}</style><div class="s"></div></template></div>
+      </div>
+    </section>
+
+    <section>
+      <h2>10. SPA route change</h2>
+      <p>
+        Single-page apps swap content without a reload. The button below
+        pushes a history entry and injects a brand-new spinner and GIF; both
+        must arrive already calmed.
+      </p>
+      <button type="button" id="spa-btn">Navigate (pushState)</button>
+      <div id="spa-view" style="margin-top:12px;min-height:100px"></div>
+    </section>
+
+    <section>
+      <h2>11. iframes (same-origin and cross-origin)</h2>
+      <p>
+        Left: a same-origin srcdoc frame. Right: the same content served from
+        a different origin (localhost vs 127.0.0.1). Both spinners must hold
+        still and both GIFs must freeze under Steady. The cross-origin frame
+        only loads when the harness is served over http (node tools/e2e.mjs
+        does this automatically).
+      </p>
+      <div style="display:flex;gap:16px">
+        <iframe id="frame-same" title="same-origin frame" width="220" height="140"
+                srcdoc="<style>.s{width:28px;height:28px;border-radius:50%;border:4px solid #d3dae0;border-top-color:#3a6ea5;animation:sspin 1s linear infinite}@keyframes sspin{to{transform:rotate(360deg)}}</style><div class='s'></div><img src='animated.gif' width='48' height='48' alt=''>"></iframe>
+        <iframe id="frame-cross" title="cross-origin frame" width="220" height="140"></iframe>
+      </div>
+    </section>
+
+    <section>
       <h2>6. Interactivity check</h2>
       <p>Type here, then click: <input id="field" type="text" placeholder="type something"> <button id="echo-btn" type="button">Echo</button></p>
       <p id="echo"></p>
@@ -215,6 +256,33 @@
         requestAnimationFrame(function () { el.style.transform = 'translateX(40px)'; });
       });
     })();
+
+    // --- 9. shadow DOM fixtures ---
+    var SHADOW_INNER = '<style>.s{width:28px;height:28px;border-radius:50%;' +
+      'border:4px solid #d3dae0;border-top-color:#3a6ea5;animation:sspin 1s linear infinite}' +
+      '@keyframes sspin{to{transform:rotate(360deg)}}</style><div class="s"></div>';
+    document.getElementById('sd-open').attachShadow({ mode: 'open' }).innerHTML =
+      SHADOW_INNER + '<img src="animated.gif" width="48" height="48" alt="">';
+    // closed roots are invisible to extensions' isolated world; keep a page
+    // reference so the e2e can inspect what Steady managed via the main world
+    window.__steadyClosedRoot = document.getElementById('sd-closed').attachShadow({ mode: 'closed' });
+    window.__steadyClosedRoot.innerHTML = SHADOW_INNER;
+
+    // --- 10. SPA route change ---
+    window.__spaNavigate = function () {
+      history.pushState({ route: 2 }, '', '#route-2');
+      document.getElementById('spa-view').innerHTML =
+        '<div class="spinner" id="spa-spinner"></div>' +
+        '<img id="spa-gif" src="animated.gif" width="96" height="96" alt="">';
+    };
+    document.getElementById('spa-btn').addEventListener('click', window.__spaNavigate);
+
+    // --- 11. cross-origin frame (only meaningful over http) ---
+    if (location.protocol.indexOf('http') === 0 && location.port) {
+      var crossHost = location.hostname === 'localhost' ? '127.0.0.1' : 'localhost';
+      document.getElementById('frame-cross').src =
+        location.protocol + '//' + crossHost + ':' + location.port + '/frame.html';
+    }
 
     // --- 8. Web Animations API boxes ---
     document.getElementById('waapi-box').animate(
