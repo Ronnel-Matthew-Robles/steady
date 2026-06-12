@@ -181,6 +181,8 @@ html, body {
 
 .foot-hint { color: var(--ink-soft); }
 
+.foot-links { display: flex; gap: 7px; align-items: center; color: var(--ink-soft); }
+
 .foot a { color: var(--focus); }
 
 .foot a:focus-visible {

@@ -31,6 +31,10 @@
   var observer = null;
   var observedRoots = null; // WeakSet of shadow roots the observer already watches
   var styleEl = null;
+  var feat = DEFAULT_SETTINGS.features; // granular feature flags, refreshed in applyState
+
+  function mediaOn() { return feat.media !== false; }
+  function imagesOn() { return feat.images !== false; }
 
   // ---- Calm stylesheet (synchronous, pre-paint) ----------------------------
 
@@ -63,12 +67,26 @@
     if (existing && existing.parentNode) existing.parentNode.removeChild(existing);
   }
 
+  // Recompose the stylesheet for the enabled CSS features. The shadow-root
+  // sheet shares the same text; replaceSync updates every adopted root live,
+  // and the main-world shim re-reads the style element on the next flag flip.
+  function refreshStyleText() {
+    var css = buildCalmCss(feat);
+    if (styleEl && styleEl.textContent !== css) styleEl.textContent = css;
+    if (shadowSheet) {
+      try { shadowSheet.replaceSync(css); } catch (e) { /* ignore */ }
+    }
+  }
+
   // The main-world shim (src/main-world.js) reads this flag to decide whether
   // to calm Web Animations API animations, and watches it for live toggles.
+  // The value is a feature signature: changing it (not just adding/removing
+  // the attribute) wakes the shim so it re-reads the injected stylesheet for
+  // its shadow-root sheet.
   function setCalmFlag(on) {
     var de = document.documentElement;
     if (!de) return;
-    if (on) de.setAttribute('data-steady-calm', '');
+    if (on) de.setAttribute('data-steady-calm', feat.scroll !== false ? 's' : '');
     else de.removeAttribute('data-steady-calm');
   }
 
@@ -137,13 +155,21 @@
   function applyState(settings) {
     var host = window.top === window ? location.hostname : (topHost || location.hostname);
     var calm = isEffectivelyCalm(settings, host);
+    feat = (settings && settings.features) || DEFAULT_SETTINGS.features;
     reportStatus();
     var prev = state;
     state = calm ? 'calm' : 'inactive';
-    setCalmFlag(calm);
+    // The calm flag drives the main-world WAAPI shim, which belongs to the
+    // animations feature.
+    setCalmFlag(calm && featureOn(settings, 'animations'));
     if (calm) {
       injectStyle();
+      refreshStyleText();
       startObserver();
+      // A feature switched off while the site stays calm must release its
+      // effects; the sweeps below respect the gates and re-apply the rest.
+      if (!featureOn(settings, 'media')) forAllScopes(resumePausedMedia);
+      if (!featureOn(settings, 'images')) forAllScopes(unfreezeImages);
       sweepAll();
     } else {
       removeStyle();
@@ -164,7 +190,7 @@
   if (chromeOk() && chrome.storage && chrome.storage.onChanged) {
     chrome.storage.onChanged.addListener(function (changes, area) {
       if (area !== 'local') return;
-      if (!changes.enabled && !changes.allowed) return;
+      if (!changes.enabled && !changes.allowed && !changes.features) return;
       refresh();
     });
   }
@@ -182,7 +208,7 @@
   }
 
   function pauseOne(media) {
-    if (state !== 'calm') return;
+    if (state !== 'calm' || !mediaOn()) return;
     if (media.dataset && media.dataset.steadyUserPlayed) return;
     var isAutoplay = media.autoplay || media.hasAttribute('autoplay');
     if (isAutoplay || !media.paused) {
@@ -209,7 +235,7 @@
   // (declarative autoplay, programmatic .play() with no gesture) gets paused,
   // no matter how late in the page's life it starts.
   document.addEventListener('play', function (e) {
-    if (state !== 'calm') return;
+    if (state !== 'calm' || !mediaOn()) return;
     var t = e.target;
     if (!t || typeof t.pause !== 'function') return;
     if (t.dataset && t.dataset.steadyUserPlayed) return;
@@ -310,7 +336,8 @@
   }
 
   function freezeImage(img) {
-    if (state !== 'calm' || !img || img.dataset.steadyFrozen || img.dataset.steadyPending) return;
+    if (state !== 'calm' || !imagesOn()) return;
+    if (!img || img.dataset.steadyFrozen || img.dataset.steadyPending) return;
     var url = img.currentSrc || img.src;
     var kind = animatedImageKind(url);
     if (!kind) return;
@@ -430,17 +457,19 @@
 
   // ---- Restore (per-site exception / global off) -----------------------------
 
-  function restoreScope(scope) {
-    var i;
+  function resumePausedMedia(scope) {
     var media = scope.querySelectorAll('video[data-steady-paused], audio[data-steady-paused]');
-    for (i = 0; i < media.length; i++) {
+    for (var i = 0; i < media.length; i++) {
       media[i].removeAttribute('data-steady-paused');
       try {
         var p = media[i].play();
         if (p && p.catch) p.catch(function () { /* autoplay policy may block */ });
       } catch (e) { /* ignore */ }
     }
+  }
 
+  function unfreezeImages(scope) {
+    var i;
     var sources = scope.querySelectorAll('source[data-steady-srcset]');
     for (i = 0; i < sources.length; i++) {
       sources[i].setAttribute('srcset', sources[i].dataset.steadySrcset);
@@ -464,6 +493,18 @@
       delete img.dataset.steadyCors;
       delete img.dataset.steadyWebpChecked;
     }
+  }
+
+  function restoreScope(scope) {
+    resumePausedMedia(scope);
+    unfreezeImages(scope);
+  }
+
+  // Run fn against the document and every open shadow root.
+  function forAllScopes(fn) {
+    fn(document);
+    var roots = collectOpenRoots(document, []);
+    for (var i = 0; i < roots.length; i++) fn(roots[i]);
   }
 
   function restoreAll() {
@@ -583,7 +624,7 @@
     }
     var de = document.documentElement;
     if (!de) return;
-    var wantCalm = state === 'calm';
+    var wantCalm = state === 'calm' && feat.animations !== false;
     if (de.hasAttribute('data-steady-calm') !== wantCalm) setCalmFlag(wantCalm);
     if (rootReplaced) {
       observeIntegrityRoot();

@@ -329,6 +329,49 @@ async function runScenario(loadExtension, port) {
           mail: document.getElementById('mail-link').href.slice(0, 7),
           github: document.getElementById('gh-link').href,
         })`);
+
+        // Options page: granular toggles and the exceptions manager. The
+        // images toggle must release frozen GIFs on the harness tab LIVE.
+        const { targetId: optId } = await cdp.send('Target.createTarget',
+          { url: `chrome-extension://${extId}/options.html` });
+        const opt = await cdp.attach(optId);
+        await sleep(900);
+        const optInfo = await cdp.eval(opt, `({
+          anims: document.getAnimations().length,
+          masterChecked: document.getElementById('master-toggle').getAttribute('aria-checked'),
+          imagesChecked: document.getElementById('feat-images').getAttribute('aria-checked'),
+        })`);
+        await cdp.eval(opt, "document.getElementById('feat-images').click()");
+        await sleep(1000);
+        const imagesOffStored = await cdp.eval(swSession,
+          'new Promise(r => chrome.storage.local.get({ features: { images: true } }, s => r(s.features.images)))');
+        const harnessGifReleased = await cdp.eval(page,
+          "document.getElementById('gif').src.indexOf('animated.gif') !== -1");
+        const spinnerStillCalm = await cdp.eval(page,
+          "!!document.getElementById('steady-style')");
+        await cdp.eval(opt, "document.getElementById('feat-images').click()");
+        await sleep(1200);
+        const harnessGifRefrozen = await cdp.eval(page,
+          "document.getElementById('gif').src.startsWith('data:image/png')");
+
+        // Exceptions manager: seed two entries, render, remove one.
+        await cdp.eval(swSession,
+          "new Promise(r => chrome.storage.local.set({ allowed: { 'example.com': true, 'foo.test': true } }, r))");
+        await sleep(600);
+        const listCount = await cdp.eval(opt,
+          "document.querySelectorAll('#exceptions-list li').length");
+        await cdp.eval(opt,
+          "document.querySelector('#exceptions-list li button').click()");
+        await sleep(600);
+        const allowedAfterRemove = await cdp.eval(swSession,
+          'new Promise(r => chrome.storage.local.get({ allowed: {} }, s => r(Object.keys(s.allowed))))');
+        await cdp.eval(swSession,
+          'new Promise(r => chrome.storage.local.set({ allowed: {} }, r))');
+        await sleep(400);
+        toggle.options = {
+          optInfo, imagesOffStored, harnessGifReleased, spinnerStillCalm,
+          harnessGifRefrozen, listCount, allowedAfterRemove,
+        };
       }
     }
     return { top, bottom, toggle, motion, caroDelta, shadow, spa, frameSame, frameCross };
@@ -437,6 +480,22 @@ try {
         rep.github.slice(0, 120));
     } else {
       check('report: page reachable', false, 'report target not created');
+    }
+    const opt = ext.toggle.options;
+    if (opt) {
+      check('options: page runs zero animations, switches reflect state',
+        opt.optInfo.anims === 0 && opt.optInfo.masterChecked === 'true' && opt.optInfo.imagesChecked === 'true',
+        JSON.stringify(opt.optInfo));
+      check('options: images toggle writes features.images=false', opt.imagesOffStored === false, opt.imagesOffStored);
+      check('options: harness GIF released LIVE while animations stay calmed',
+        opt.harnessGifReleased && opt.spinnerStillCalm,
+        `released=${opt.harnessGifReleased} styleStill=${opt.spinnerStillCalm}`);
+      check('options: harness GIF re-frozen when toggled back', opt.harnessGifRefrozen, opt.harnessGifRefrozen);
+      check('options: exceptions list renders seeded entries', opt.listCount === 2, opt.listCount);
+      check('options: remove button deletes exactly one exception',
+        Array.isArray(opt.allowedAfterRemove) && opt.allowedAfterRemove.length === 1, JSON.stringify(opt.allowedAfterRemove));
+    } else {
+      check('options: page reachable', false, 'options target not created');
     }
   } else {
     check('toggle: service worker reachable', false, 'service worker target not found');

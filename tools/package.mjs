@@ -19,6 +19,8 @@ const INCLUDE = [
   'onboarding.js',
   'report.html',
   'report.js',
+  'options.html',
+  'options.js',
   'src',
   'popup',
   'icons',

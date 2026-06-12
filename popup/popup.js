@@ -23,6 +23,14 @@ var els = {
   report: document.getElementById('report-link')
 };
 
+var optionsLink = document.getElementById('options-link');
+if (optionsLink) {
+  optionsLink.addEventListener('click', function (e) {
+    e.preventDefault();
+    chrome.runtime.openOptionsPage();
+  });
+}
+
 function updateReportLink() {
   if (!els.report) return;
   // Steady's own report page: builds the report locally and offers copy,

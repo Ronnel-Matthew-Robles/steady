@@ -23,9 +23,6 @@
   animation-iteration-count: 1 !important;
 }
 
-html, body { scroll-behavior: auto !important; }
-* { scroll-behavior: auto !important; }
-
 /* Best-effort parallax: a fixed background is a very common pure-CSS parallax
    effect. Pin it to the page so it stops drifting on scroll. */
 *, *::before, *::after { background-attachment: scroll !important; }
@@ -38,3 +35,7 @@ html, body { scroll-behavior: auto !important; }
   transform: none !important;
   translate: none !important;
 }
+
+/* Smooth-scroll neutralization (the "scroll" feature block). */
+html, body { scroll-behavior: auto !important; }
+* { scroll-behavior: auto !important; }

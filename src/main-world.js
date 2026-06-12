@@ -188,6 +188,12 @@
   }
 
   function calmAll() {
+    // The content script edits the injected stylesheet when feature toggles
+    // change; keep the shadow-root sheet in step with it.
+    try {
+      var styleEl = document.getElementById('steady-style');
+      if (styleEl && calmSheet) calmSheet.replaceSync(styleEl.textContent);
+    } catch (e) { /* ignore */ }
     try {
       document.getAnimations().forEach(function (anim) {
         if (isWaapi(anim)) calmOne(anim);

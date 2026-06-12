@@ -55,6 +55,30 @@ test('CALM_CSS preserves durations/delays so event-paced carousels keep their ca
   assert.doesNotMatch(css, /transition-delay/);
 });
 
+test('DEFAULT_SETTINGS includes all-calm feature defaults', () => {
+  assert.deepEqual(lib.DEFAULT_SETTINGS.features,
+    { animations: true, media: true, images: true, scroll: true });
+});
+
+test('featureOn defaults to true for missing settings/features', () => {
+  assert.equal(lib.featureOn({}, 'animations'), true);
+  assert.equal(lib.featureOn({ features: {} }, 'media'), true);
+  assert.equal(lib.featureOn({ features: { media: false } }, 'media'), false);
+  assert.equal(lib.featureOn(null, 'images'), true);
+});
+
+test('buildCalmCss composes blocks by feature', () => {
+  const full = lib.buildCalmCss({ animations: true, scroll: true });
+  assert.equal(full, lib.CALM_CSS);
+  const motionOnly = lib.buildCalmCss({ animations: true, scroll: false });
+  assert.match(motionOnly, /step-start/);
+  assert.doesNotMatch(motionOnly, /scroll-behavior/);
+  const scrollOnly = lib.buildCalmCss({ animations: false, scroll: true });
+  assert.match(scrollOnly, /scroll-behavior:\s*auto\s*!important/);
+  assert.doesNotMatch(scrollOnly, /step-start/);
+  assert.equal(lib.buildCalmCss({ animations: false, scroll: false }), '');
+});
+
 test('animatedImageKind distinguishes gif from webp', () => {
   assert.equal(lib.animatedImageKind('https://x/a.gif'), 'gif');
   assert.equal(lib.animatedImageKind('https://x/a.GIF?v=2'), 'gif');

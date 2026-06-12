@@ -9,7 +9,13 @@
 //
 // Keep it dependency-free and side-effect-free (no chrome.* calls, no DOM).
 
-var DEFAULT_SETTINGS = { enabled: true, allowed: {} };
+var DEFAULT_SETTINGS = {
+  enabled: true,
+  allowed: {},
+  // Granular feature switches, all defaulting to the calm state. Users can
+  // e.g. keep GIFs frozen but let autoplay through.
+  features: { animations: true, media: true, images: true, scroll: true }
+};
 
 // Reduced-motion ruleset. Two rules are CRITICAL here:
 //
@@ -24,14 +30,12 @@ var DEFAULT_SETTINGS = { enabled: true, allowed: {} };
 // JUMP straight to its end state visually while still running for its
 // original duration, so end states apply (reveal-on-scroll content appears)
 // and the site's event schedule is untouched.
-var CALM_CSS = [
+var CALM_CSS_MOTION = [
   '*, *::before, *::after {',
   '  animation-timing-function: step-start !important;',
   '  transition-timing-function: step-start !important;',
   '  animation-iteration-count: 1 !important;',
   '}',
-  'html, body { scroll-behavior: auto !important; }',
-  '* { scroll-behavior: auto !important; }',
   '/* Best-effort parallax: a fixed background is a very common pure-CSS',
   '   parallax effect. Pin it to the page so it stops drifting on scroll. */',
   '*, *::before, *::after { background-attachment: scroll !important; }',
@@ -44,6 +48,29 @@ var CALM_CSS = [
   '  translate: none !important;',
   '}'
 ].join('\n');
+
+var CALM_CSS_SCROLL = [
+  'html, body { scroll-behavior: auto !important; }',
+  '* { scroll-behavior: auto !important; }'
+].join('\n');
+
+// Full ruleset (kept in sync with src/calm.css by a unit test).
+var CALM_CSS = CALM_CSS_MOTION + '\n' + CALM_CSS_SCROLL;
+
+// Feature flags default to ON when missing, so settings written by older
+// versions (which had no `features` key) keep calming everything.
+function featureOn(settings, name) {
+  if (!settings || !settings.features) return true;
+  return settings.features[name] !== false;
+}
+
+// Compose the stylesheet for the enabled CSS-level features.
+function buildCalmCss(features) {
+  var parts = [];
+  if (!features || features.animations !== false) parts.push(CALM_CSS_MOTION);
+  if (!features || features.scroll !== false) parts.push(CALM_CSS_SCROLL);
+  return parts.join('\n');
+}
 
 // Lowercase and strip a single leading "www." so example.com and www.example.com
 // share one exception entry.
@@ -84,6 +111,10 @@ if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     DEFAULT_SETTINGS: DEFAULT_SETTINGS,
     CALM_CSS: CALM_CSS,
+    CALM_CSS_MOTION: CALM_CSS_MOTION,
+    CALM_CSS_SCROLL: CALM_CSS_SCROLL,
+    featureOn: featureOn,
+    buildCalmCss: buildCalmCss,
     normalizeHost: normalizeHost,
     isEffectivelyCalm: isEffectivelyCalm,
     animatedImageKind: animatedImageKind,
