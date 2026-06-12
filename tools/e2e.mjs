@@ -243,6 +243,25 @@ async function runScenario(loadExtension, port) {
         await sleep(700);
         const obBack = await cdp.eval(ob, OB);
         toggle.onboarding = { obOn, obOff, obBack, storedAfterClick };
+
+        // Report page: builds the report locally; typing must flow into the
+        // preview and into both outbound links.
+        const { targetId: repId } = await cdp.send('Target.createTarget',
+          { url: `chrome-extension://${extId}/report.html?host=example.com` });
+        const rep = await cdp.attach(repId);
+        await sleep(800);
+        await cdp.eval(rep, `(() => {
+          const w = document.getElementById('f-what');
+          w.value = 'The hero banner strobes.';
+          w.dispatchEvent(new Event('input'));
+        })()`);
+        toggle.report = await cdp.eval(rep, `({
+          site: document.getElementById('ctx-site').textContent,
+          version: document.getElementById('ctx-version').textContent,
+          preview: document.getElementById('preview').textContent,
+          mail: document.getElementById('mail-link').href.slice(0, 7),
+          github: document.getElementById('gh-link').href,
+        })`);
       }
     }
     return { top, bottom, toggle, motion, caroDelta };
@@ -319,6 +338,19 @@ try {
       check('onboarding: re-frozen after switching back on', onb.obBack.frozen, JSON.stringify(onb.obBack));
     } else {
       check('onboarding: page reachable', false, 'onboarding target not created');
+    }
+    const rep = ext.toggle.report;
+    if (rep) {
+      check('report: context shows site + version',
+        rep.site === 'example.com' && /^\d+\.\d+\.\d+$/.test(rep.version), JSON.stringify(rep));
+      check('report: typed text flows into the preview',
+        rep.preview.includes('The hero banner strobes.'), rep.preview.slice(0, 120));
+      check('report: email link is a mailto draft', rep.mail === 'mailto:', rep.mail);
+      check('report: GitHub link pre-fills the typed report',
+        rep.github.includes('issues/new?title=') && rep.github.includes(encodeURIComponent('The hero banner strobes.')),
+        rep.github.slice(0, 120));
+    } else {
+      check('report: page reachable', false, 'report target not created');
     }
   } else {
     check('toggle: service worker reachable', false, 'service worker target not found');

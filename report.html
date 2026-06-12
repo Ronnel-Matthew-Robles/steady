@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Report a problem to Steady</title>
+  <style>
+    *, *::before, *::after {
+      box-sizing: border-box;
+      animation: none !important;
+      transition: none !important;
+    }
+    [hidden] { display: none !important; }
+
+    :root {
+      --paper: #f4f6f8;
+      --card: #ffffff;
+      --ink: #1f2933;
+      --ink-soft: #46545f;
+      --line: #d3dae0;
+      --hair: #e3e9ee;
+      --accent: #3a6ea5;
+      --focus: #14467a;
+      --serif: Georgia, 'Iowan Old Style', 'Palatino Linotype', 'Book Antiqua', serif;
+      --sans: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    html, body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: var(--sans);
+      font-size: 16px;
+      line-height: 1.55;
+    }
+
+    a { color: var(--focus); }
+    a:focus-visible, button:focus-visible, textarea:focus-visible {
+      outline: 3px solid var(--focus);
+      outline-offset: 2px;
+    }
+
+    .page { max-width: 640px; margin: 0 auto; padding: 40px 24px 64px; }
+
+    .masthead {
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--line);
+    }
+    .wordmark { font-family: var(--serif); font-size: 20px; font-weight: 700; }
+
+    h1 {
+      font-family: var(--serif);
+      font-size: 34px;
+      line-height: 1.15;
+      margin: 26px 0 8px;
+    }
+    .lead { color: var(--ink-soft); margin: 0 0 22px; }
+
+    .context {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 12px 16px;
+      font-size: 15px;
+      margin-bottom: 22px;
+    }
+    .context dt { float: left; clear: left; width: 110px; color: var(--ink-soft); }
+    .context dd { margin: 0 0 4px 110px; font-weight: 600; }
+
+    label {
+      display: block;
+      font-weight: 700;
+      font-size: 16px;
+      margin: 18px 0 6px;
+    }
+    label .opt { font-weight: 400; color: var(--ink-soft); font-size: 14px; }
+    textarea {
+      width: 100%;
+      min-height: 76px;
+      font: inherit;
+      font-size: 15px;
+      color: var(--ink);
+      background: var(--card);
+      border: 1px solid #7e8a93;
+      border-radius: 10px;
+      padding: 10px 12px;
+      resize: vertical;
+    }
+
+    .preview-label {
+      margin-top: 26px;
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--ink-soft);
+    }
+    pre {
+      background: var(--card);
+      border: 1px solid var(--hair);
+      border-radius: 12px;
+      padding: 14px 16px;
+      font-size: 14px;
+      line-height: 1.5;
+      white-space: pre-wrap;
+      word-break: break-word;
+      margin: 8px 0 0;
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 20px;
+    }
+    .btn {
+      font: inherit;
+      font-size: 15px;
+      font-weight: 600;
+      padding: 10px 16px;
+      border-radius: 10px;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-block;
+      border: 1px solid #7e8a93;
+      background: var(--card);
+      color: var(--ink);
+    }
+    .btn-primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+    .status {
+      margin: 12px 0 0;
+      font-size: 15px;
+      font-weight: 600;
+      color: #2e6b34;
+      min-height: 1.4em;
+    }
+    .foot {
+      margin-top: 26px;
+      padding-top: 14px;
+      border-top: 1px solid var(--line);
+      font-size: 14px;
+      color: var(--ink-soft);
+    }
+
+    @media (prefers-contrast: more) {
+      :root { --line: #5b6770; --hair: #5b6770; --ink-soft: #2a363f; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header class="masthead">
+      <svg width="26" height="26" viewBox="0 0 34 34" role="img" aria-label="Steady icon">
+        <defs>
+          <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#3b4a5a"/>
+            <stop offset="1" stop-color="#52606e"/>
+          </linearGradient>
+        </defs>
+        <rect x="1" y="1" width="32" height="32" rx="8" fill="url(#bg)"/>
+        <rect x="8" y="15.5" width="18" height="3" rx="1.5" fill="#eef2f5"/>
+      </svg>
+      <span class="wordmark">Steady</span>
+    </header>
+
+    <main>
+      <h1>Report a problem</h1>
+      <p class="lead">
+        Nothing is sent until you choose how to send it. The report below is
+        assembled on your device; you can read every word of it first.
+      </p>
+
+      <dl class="context" aria-label="Report context">
+        <dt>Site</dt><dd id="ctx-site">(general feedback)</dd>
+        <dt>Steady</dt><dd id="ctx-version">&hellip;</dd>
+        <dt>Browser</dt><dd id="ctx-browser">&hellip;</dd>
+      </dl>
+
+      <label for="f-what">What happened?</label>
+      <textarea id="f-what" placeholder="The banner at the top kept sliding, the page went blank, ..."></textarea>
+
+      <label for="f-expected">What did you expect? <span class="opt">(optional)</span></label>
+      <textarea id="f-expected" placeholder="The banner holds still, the content stays visible, ..."></textarea>
+
+      <p class="preview-label">Your report, exactly as it will be sent</p>
+      <pre id="preview" aria-live="polite"></pre>
+
+      <div class="actions">
+        <button id="copy-btn" type="button" class="btn btn-primary">Copy report</button>
+        <a id="mail-link" class="btn" href="#">Send by email</a>
+        <a id="gh-link" class="btn" href="#" target="_blank" rel="noopener">Open a GitHub issue</a>
+      </div>
+      <p class="status" id="copy-status" role="status" aria-live="polite"></p>
+
+      <footer class="foot">
+        Email needs no account of any kind. The GitHub option posts publicly on
+        the open-source project and needs a GitHub login. Either way, the
+        report contains only what you see above; Steady never collects
+        anything on its own.
+      </footer>
+    </main>
+  </div>
+  <script src="report.js"></script>
+</body>
+</html>

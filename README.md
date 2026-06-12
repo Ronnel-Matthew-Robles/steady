@@ -134,9 +134,16 @@ for Steady on `chrome://extensions`.
 
 ## Reporting problems
 
-Found a site where Steady misbehaves? [Open an issue](https://github.com/Ronnel-Matthew-Robles/steady/issues/new/choose)
-with the URL, what happened, and what you expected. The popup's "Report a problem"
-link pre-fills one for the site you are on.
+Click **Report a problem** in the popup. It opens Steady's own report page, which
+assembles a report locally (site, version, browser, your description) and shows you
+every word before anything leaves your machine. Send it whichever way suits you:
+
+- **Copy** it to your clipboard and paste it anywhere.
+- **Email** it (no account of any kind needed).
+- **Open a GitHub issue**, pre-filled, on the public tracker:
+  [github.com/Ronnel-Matthew-Robles/steady/issues](https://github.com/Ronnel-Matthew-Robles/steady/issues).
+
+Steady never collects or transmits anything on its own.
 
 ## Keyboard shortcuts
 

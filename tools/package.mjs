@@ -17,6 +17,8 @@ const INCLUDE = [
   'LICENSE',
   'onboarding.html',
   'onboarding.js',
+  'report.html',
+  'report.js',
   'src',
   'popup',
   'icons',

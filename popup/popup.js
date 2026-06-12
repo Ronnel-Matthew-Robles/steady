@@ -23,20 +23,12 @@ var els = {
   report: document.getElementById('report-link')
 };
 
-var REPORT_BASE = 'https://github.com/Ronnel-Matthew-Robles/steady/issues/new';
-
 function updateReportLink() {
   if (!els.report) return;
-  var title = state.host ? 'Problem on ' + state.host : 'Problem report';
-  var body = [
-    '**URL:** ' + (state.host || '(not a website)'),
-    '**What happened:** ',
-    '**What I expected:** ',
-    ''
-  ].join('\n');
-  els.report.href = REPORT_BASE +
-    '?title=' + encodeURIComponent(title) +
-    '&body=' + encodeURIComponent(body);
+  // Steady's own report page: builds the report locally and offers copy,
+  // email, or GitHub, so users without a GitHub account are never stranded.
+  els.report.href = chrome.runtime.getURL('report.html') +
+    (state.host ? '?host=' + encodeURIComponent(state.host) : '');
 }
 
 var state = {
