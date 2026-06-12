@@ -60,6 +60,12 @@ test('DEFAULT_SETTINGS includes all-calm feature defaults', () => {
     { animations: true, media: true, images: true, scroll: true });
 });
 
+test('comfort layers default OFF', () => {
+  assert.equal(lib.DEFAULT_SETTINGS.soften.enabled, false);
+  assert.equal(lib.DEFAULT_SETTINGS.dampen, false);
+  assert.equal(lib.DEFAULT_SETTINGS.panic, false);
+});
+
 test('featureOn defaults to true for missing settings/features', () => {
   assert.equal(lib.featureOn({}, 'animations'), true);
   assert.equal(lib.featureOn({ features: {} }, 'media'), true);

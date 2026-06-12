@@ -14,7 +14,14 @@ var DEFAULT_SETTINGS = {
   allowed: {},
   // Granular feature switches, all defaulting to the calm state. Users can
   // e.g. keep GIFs frozen but let autoplay through.
-  features: { animations: true, media: true, images: true, scroll: true }
+  features: { animations: true, media: true, images: true, scroll: true },
+  // Comfort layers, all OFF by default (they alter how pages look, so they
+  // are strictly opt-in). soften caps brightness/saturation gently; dampen
+  // reduces the intensity of video/canvas/GIF content (harm reduction, never
+  // a safety guarantee); panic is the Alt+Shift+D full-viewport dim.
+  soften: { enabled: false, level: 30 },
+  dampen: false,
+  panic: false
 };
 
 // Reduced-motion ruleset. Two rules are CRITICAL here:

@@ -115,6 +115,12 @@ chrome.commands.onCommand.addListener(function (command) {
     });
     return;
   }
+  if (command === 'panic-dim') {
+    chrome.storage.local.get({ panic: false }, function (s) {
+      chrome.storage.local.set({ panic: !s.panic });
+    });
+    return;
+  }
   if (command !== 'toggle-site') return;
   chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
     var tab = tabs && tabs[0];

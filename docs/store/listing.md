@@ -41,7 +41,9 @@ You stay in control:
 - A small badge appears on the toolbar icon only when Steady is NOT calming the
   page.
 
-Quiet by design: no servers, no analytics, no network requests, no account. Your
+Quiet by design: no servers, no analytics, no account. Steady contacts no one;
+the only network activity it can ever cause is re-reading an image the page
+already loaded (to check whether it is animated). Your
 settings never leave your device. Open source under the MIT license:
 https://github.com/Ronnel-Matthew-Robles/steady
 
@@ -75,8 +77,10 @@ and neutralizes parallax, while keeping pages fully interactive.
 ## Data usage disclosures
 
 - Does NOT collect any user data. All categories: none.
-- No remote code. All code is packaged; there are no network requests of any
-  kind.
+- No remote code. All code is packaged. Steady never contacts any server of its
+  own or anyone else's; the only network activity it can cause is re-requesting
+  an image the page itself already loaded (cache-first, to check whether the
+  image is animated).
 
 ## Assets (in docs/store/)
 

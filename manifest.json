@@ -2,18 +2,31 @@
   "manifest_version": 3,
   "name": "Steady: Reduce Motion & Calm the Web",
   "short_name": "Steady",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "minimum_chrome_version": "111",
   "description": "Forcibly reduces motion and sensory overload on every website, while keeping pages fully interactive.",
-  "permissions": ["storage", "activeTab"],
+  "permissions": [
+    "storage",
+    "activeTab"
+  ],
   "commands": {
     "toggle-site": {
-      "suggested_key": { "default": "Alt+Shift+S" },
+      "suggested_key": {
+        "default": "Alt+Shift+S"
+      },
       "description": "Allow or calm motion on the current site"
     },
     "toggle-global": {
-      "suggested_key": { "default": "Alt+Shift+G" },
+      "suggested_key": {
+        "default": "Alt+Shift+G"
+      },
       "description": "Turn Steady on or off everywhere"
+    },
+    "panic-dim": {
+      "suggested_key": {
+        "default": "Alt+Shift+D"
+      },
+      "description": "Panic dim: instantly dim the whole page (press again to undo)"
     }
   },
   "options_ui": {
@@ -39,15 +52,24 @@
   },
   "content_scripts": [
     {
-      "matches": ["<all_urls>"],
-      "js": ["src/lib.js", "src/content.js"],
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "src/lib.js",
+        "src/content.js"
+      ],
       "run_at": "document_start",
       "all_frames": true,
       "match_origin_as_fallback": true
     },
     {
-      "matches": ["<all_urls>"],
-      "js": ["src/main-world.js"],
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "src/main-world.js"
+      ],
       "run_at": "document_start",
       "all_frames": true,
       "match_origin_as_fallback": true,

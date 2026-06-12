@@ -372,6 +372,34 @@ async function runScenario(loadExtension, port) {
           optInfo, imagesOffStored, harnessGifReleased, spinnerStillCalm,
           harnessGifRefrozen, listCount, allowedAfterRemove,
         };
+
+        // Comfort layers (all off by default): dampen filter, soften overlay,
+        // panic dim, and the conservative never-claim-safety copy.
+        const dampenCopy = await cdp.eval(opt,
+          "document.getElementById('dampen-help').textContent");
+        const comfortDefaults = await cdp.eval(page, `({
+          soften: !!document.getElementById('steady-soften'),
+          dampen: !!document.getElementById('steady-dampen-style'),
+          panic: !!document.getElementById('steady-panic'),
+        })`);
+        await cdp.eval(swSession,
+          "new Promise(r => chrome.storage.local.set({ dampen: true, soften: { enabled: true, level: 50 }, panic: true }, r))");
+        await sleep(800);
+        const comfortOn = await cdp.eval(page, `({
+          videoFilter: getComputedStyle(document.getElementById('video')).filter,
+          soften: (document.getElementById('steady-soften') || {}).style ? document.getElementById('steady-soften').style.backdropFilter : '',
+          panic: !!document.getElementById('steady-panic'),
+        })`);
+        await cdp.eval(swSession,
+          "new Promise(r => chrome.storage.local.set({ dampen: false, soften: { enabled: false, level: 50 }, panic: false }, r))");
+        await sleep(800);
+        const comfortOff = await cdp.eval(page, `({
+          soften: !!document.getElementById('steady-soften'),
+          dampen: !!document.getElementById('steady-dampen-style'),
+          panic: !!document.getElementById('steady-panic'),
+          videoFilter: getComputedStyle(document.getElementById('video')).filter,
+        })`);
+        toggle.comfort = { dampenCopy, comfortDefaults, comfortOn, comfortOff };
       }
     }
     return { top, bottom, toggle, motion, caroDelta, shadow, spa, frameSame, frameCross };
@@ -496,6 +524,26 @@ try {
         Array.isArray(opt.allowedAfterRemove) && opt.allowedAfterRemove.length === 1, JSON.stringify(opt.allowedAfterRemove));
     } else {
       check('options: page reachable', false, 'options target not created');
+    }
+    const cf = ext.toggle.comfort;
+    if (cf) {
+      check('comfort: all layers OFF by default (no overlays/filters)',
+        !cf.comfortDefaults.soften && !cf.comfortDefaults.dampen && !cf.comfortDefaults.panic,
+        JSON.stringify(cf.comfortDefaults));
+      check('comfort: dampen filters video brightness/contrast',
+        cf.comfortOn.videoFilter.includes('brightness(0.8)') && cf.comfortOn.videoFilter.includes('contrast(0.75)'),
+        cf.comfortOn.videoFilter);
+      check('comfort: soften overlay applies backdrop-filter',
+        cf.comfortOn.soften.includes('brightness') && cf.comfortOn.soften.includes('saturate'),
+        cf.comfortOn.soften);
+      check('comfort: panic dim overlay present when toggled', cf.comfortOn.panic, cf.comfortOn.panic);
+      check('comfort: everything removed cleanly when toggled off',
+        !cf.comfortOff.soften && !cf.comfortOff.dampen && !cf.comfortOff.panic && cf.comfortOff.videoFilter === 'none',
+        JSON.stringify(cf.comfortOff));
+      check('comfort: flash copy never claims safety ("not a guarantee" present)',
+        /not a guarantee of safety/i.test(cf.dampenCopy), cf.dampenCopy.slice(0, 120));
+    } else {
+      check('comfort: checks ran', false, 'comfort block missing');
     }
   } else {
     check('toggle: service worker reachable', false, 'service worker target not found');

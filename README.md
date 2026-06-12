@@ -4,7 +4,9 @@ Steady is a Manifest V3 Chrome extension that forcibly reduces motion and sensor
 overload on every website, while keeping pages fully interactive. It is built for people
 with vestibular disorders, migraines, ADHD, autism, and general motion sensitivity.
 
-It is fully offline: no backend, no network requests, no analytics, no ads. The only data
+It is fully offline: no backend, no analytics, no ads, and it talks to no one. The only
+network activity it can ever cause is re-reading an image the page already loaded
+(cache-first, to check whether the image is animated). The only data
 it stores is your toggle state and per-site exceptions, kept in `chrome.storage.local` on
 your own machine.
 
@@ -58,6 +60,20 @@ Click the **Steady** toolbar icon to open the popup:
 - **Steady (global on/off)**: calms motion on every site. On by default.
 - **Allow motion on this site**: a per-site exception. Turn it on to let a specific site
   animate normally. The choice is remembered.
+
+**All settings** (popup footer, or right-click the icon and choose Options) opens the
+full settings page:
+
+- **Granular toggles**: calm animations, autoplaying media, animated images, and smooth
+  scrolling independently. All default to calm; freeze GIFs but allow autoplay if that is
+  what works for you.
+- **Exceptions manager**: see every site you have allowed motion on and remove entries
+  without having to visit the site.
+- **Comfort layers (all off by default)**: *Soften colors* gently caps page brightness
+  and saturation; *Reduce flashing* lowers the brightness and contrast of video, canvas,
+  and animated images to blunt rapid light/dark swings (this reduces intensity only; it
+  is not a guarantee of safety and must not be relied on to prevent photosensitive
+  reactions); *Panic dim* instantly dims the whole page.
 
 The toolbar tooltip shows the current page's status (calming, motion allowed here, or off),
 and a small "off" badge appears on the icon whenever Steady is not calming the page.
@@ -114,7 +130,9 @@ restored, and media that Steady paused is resumed (best effort), all without a r
 
 ## Privacy
 
-Steady makes no network requests and includes no analytics or tracking. The only stored
+Steady contacts no servers and includes no analytics or tracking. The only network
+activity it can ever cause is re-requesting an image the page itself already loaded
+(cache-first, to detect animation or retry with CORS). The only stored
 data is your global toggle and the list of sites you have allowed motion on, in
 `chrome.storage.local`.
 
@@ -154,6 +172,7 @@ Steady never collects or transmits anything on its own.
 
 - `Alt+Shift+S`: allow or calm motion on the current site
 - `Alt+Shift+G`: turn Steady on or off everywhere
+- `Alt+Shift+D`: panic dim, instantly dims the whole page (press again to undo)
 
 Both are remappable at `chrome://extensions/shortcuts`.
 

@@ -15,7 +15,13 @@ var els = {
   list: document.getElementById('exceptions-list'),
   empty: document.getElementById('exceptions-empty'),
   removeAll: document.getElementById('remove-all'),
-  shortcuts: document.getElementById('shortcuts-btn')
+  shortcuts: document.getElementById('shortcuts-btn'),
+  soften: document.getElementById('soften-toggle'),
+  softenRow: document.getElementById('soften-level-row'),
+  softenLevel: document.getElementById('soften-level'),
+  softenValue: document.getElementById('soften-level-value'),
+  dampen: document.getElementById('dampen-toggle'),
+  panic: document.getElementById('panic-toggle')
 };
 
 var settings = DEFAULT_SETTINGS;
@@ -41,6 +47,14 @@ function render() {
   Object.keys(els.features).forEach(function (name) {
     setSwitch(els.features[name], featureOn(settings, name));
   });
+
+  var soften = settings.soften || DEFAULT_SETTINGS.soften;
+  setSwitch(els.soften, soften.enabled === true);
+  els.softenRow.hidden = soften.enabled !== true;
+  els.softenLevel.value = String(soften.level || 30);
+  els.softenValue.textContent = (soften.level || 30) + '%';
+  setSwitch(els.dampen, settings.dampen === true);
+  setSwitch(els.panic, settings.panic === true);
 
   var hosts = Object.keys(settings.allowed || {}).sort();
   els.list.textContent = '';
@@ -90,6 +104,28 @@ Object.keys(els.features).forEach(function (name) {
 
 els.removeAll.addEventListener('click', function () {
   chrome.storage.local.set({ allowed: {} });
+});
+
+els.soften.addEventListener('click', function () {
+  var current = settings.soften || DEFAULT_SETTINGS.soften;
+  chrome.storage.local.set({
+    soften: { enabled: current.enabled !== true, level: current.level || 30 }
+  });
+});
+
+els.softenLevel.addEventListener('change', function () {
+  var current = settings.soften || DEFAULT_SETTINGS.soften;
+  chrome.storage.local.set({
+    soften: { enabled: current.enabled === true, level: Number(els.softenLevel.value) || 30 }
+  });
+});
+
+els.dampen.addEventListener('click', function () {
+  chrome.storage.local.set({ dampen: settings.dampen !== true });
+});
+
+els.panic.addEventListener('click', function () {
+  chrome.storage.local.set({ panic: settings.panic !== true });
 });
 
 els.shortcuts.addEventListener('click', function () {

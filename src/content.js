@@ -32,6 +32,7 @@
   var observedRoots = null; // WeakSet of shadow roots the observer already watches
   var styleEl = null;
   var feat = DEFAULT_SETTINGS.features; // granular feature flags, refreshed in applyState
+  var lastSettings = DEFAULT_SETTINGS;   // for re-applying comfort layers after root swaps
 
   function mediaOn() { return feat.media !== false; }
   function imagesOn() { return feat.images !== false; }
@@ -152,10 +153,74 @@
     } catch (e) { /* context invalidated */ }
   }
 
+  // ---- Comfort layers (all strictly opt-in, OFF by default) -----------------
+  //
+  // soften: a gentle full-viewport brightness/saturation cap (top frame only;
+  //   backdrop-filter on a fixed overlay dims what is behind it WITHOUT making
+  //   the overlay a containing block for the page, so position:fixed layouts
+  //   keep working; a filter on <html> would break them).
+  // dampen: lowers brightness and contrast of video/canvas/GIF content to
+  //   blunt rapid light/dark swings. Harm reduction only; never marketed as
+  //   any kind of safety guarantee.
+  // panic: Alt+Shift+D, a stronger immediate dim. Deliberately independent of
+  //   the master switch: the keypress itself is the consent, and someone
+  //   reaching for it should never find it disabled.
+
+  function ensureComfortNode(id, tag) {
+    var el = document.getElementById(id);
+    if (el) return el;
+    el = document.createElement(tag);
+    el.id = id;
+    el.setAttribute('data-steady', '');
+    var parent = tag === 'style' ? (document.head || document.documentElement) : document.documentElement;
+    if (parent) parent.appendChild(el);
+    return el;
+  }
+
+  function dropComfortNode(id) {
+    var el = document.getElementById(id);
+    if (el && el.parentNode) el.parentNode.removeChild(el);
+  }
+
+  function applyComfort(settings) {
+    var on = settings.enabled !== false;
+    var isTop = window.top === window;
+
+    var soften = settings.soften || {};
+    if (isTop && on && soften.enabled) {
+      var level = Math.max(0, Math.min(100, Number(soften.level) || 0));
+      var bright = (1 - 0.20 * level / 100).toFixed(3);
+      var sat = (1 - 0.35 * level / 100).toFixed(3);
+      ensureComfortNode('steady-soften', 'div').style.cssText =
+        'position:fixed;inset:0;pointer-events:none;z-index:2147483646;' +
+        'backdrop-filter:brightness(' + bright + ') saturate(' + sat + ');';
+    } else if (isTop) {
+      dropComfortNode('steady-soften');
+    }
+
+    if (on && settings.dampen) {
+      ensureComfortNode('steady-dampen-style', 'style').textContent =
+        'video, canvas, img[src$=".gif" i], img[src^="data:image/gif"] {' +
+        ' filter: brightness(0.8) contrast(0.75) !important; }';
+    } else {
+      dropComfortNode('steady-dampen-style');
+    }
+
+    if (isTop && settings.panic) {
+      ensureComfortNode('steady-panic', 'div').style.cssText =
+        'position:fixed;inset:0;pointer-events:none;z-index:2147483647;' +
+        'background:rgba(10,14,18,0.45);backdrop-filter:brightness(0.6);';
+    } else if (isTop) {
+      dropComfortNode('steady-panic');
+    }
+  }
+
   function applyState(settings) {
     var host = window.top === window ? location.hostname : (topHost || location.hostname);
     var calm = isEffectivelyCalm(settings, host);
     feat = (settings && settings.features) || DEFAULT_SETTINGS.features;
+    lastSettings = settings || DEFAULT_SETTINGS;
+    applyComfort(lastSettings);
     reportStatus();
     var prev = state;
     state = calm ? 'calm' : 'inactive';
@@ -190,7 +255,8 @@
   if (chromeOk() && chrome.storage && chrome.storage.onChanged) {
     chrome.storage.onChanged.addListener(function (changes, area) {
       if (area !== 'local') return;
-      if (!changes.enabled && !changes.allowed && !changes.features) return;
+      if (!changes.enabled && !changes.allowed && !changes.features &&
+          !changes.soften && !changes.dampen && !changes.panic) return;
       refresh();
     });
   }
@@ -628,6 +694,7 @@
     if (de.hasAttribute('data-steady-calm') !== wantCalm) setCalmFlag(wantCalm);
     if (rootReplaced) {
       observeIntegrityRoot();
+      applyComfort(lastSettings);
       if (state !== 'inactive' && !document.getElementById(STYLE_ID)) injectStyle();
       if (state === 'calm') {
         stopObserver(); // the old observer is bound to the detached root

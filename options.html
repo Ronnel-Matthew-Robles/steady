@@ -134,6 +134,14 @@
 
     .empty { padding: 14px 0; color: var(--ink-soft); font-size: 15px; }
 
+    .slider-row { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
+    input[type="range"] { width: 180px; accent-color: var(--accent); }
+    input[type="range"]:focus-visible {
+      outline: 3px solid var(--focus);
+      outline-offset: 2px;
+      border-radius: 4px;
+    }
+
     ul.exceptions { list-style: none; margin: 0; padding: 0; }
     ul.exceptions li {
       display: flex;
@@ -255,6 +263,53 @@
                   aria-labelledby="l-scroll" class="switch" data-feature="scroll">
             <span class="switch-track" aria-hidden="true"><span class="switch-thumb"></span></span>
             <span class="switch-state" aria-hidden="true">On</span>
+          </button>
+        </div>
+      </div>
+
+      <p class="kicker" id="k-comfort">Comfort (all off by default)</p>
+      <div class="card" aria-labelledby="k-comfort">
+        <div class="row">
+          <div class="row-text">
+            <span class="row-label" id="l-soften">Soften colors</span>
+            <span class="row-help">Gently caps page brightness and color saturation for eye-strain relief.</span>
+            <div class="slider-row" id="soften-level-row" hidden>
+              <label class="row-help" for="soften-level">Intensity</label>
+              <input type="range" id="soften-level" min="10" max="100" step="10" value="30"
+                     aria-describedby="soften-level-value">
+              <span id="soften-level-value" class="row-help">30%</span>
+            </div>
+          </div>
+          <button id="soften-toggle" type="button" role="switch" aria-checked="false"
+                  aria-labelledby="l-soften" class="switch">
+            <span class="switch-track" aria-hidden="true"><span class="switch-thumb"></span></span>
+            <span class="switch-state" aria-hidden="true">Off</span>
+          </button>
+        </div>
+        <div class="row">
+          <div class="row-text">
+            <span class="row-label" id="l-dampen">Reduce flashing</span>
+            <span class="row-help" id="dampen-help">Lowers the brightness and contrast of video, canvas,
+              and animated images to blunt rapid light and dark swings. This reduces intensity only;
+              it is not a guarantee of safety and must not be relied on to prevent photosensitive
+              reactions.</span>
+          </div>
+          <button id="dampen-toggle" type="button" role="switch" aria-checked="false"
+                  aria-labelledby="l-dampen" class="switch">
+            <span class="switch-track" aria-hidden="true"><span class="switch-thumb"></span></span>
+            <span class="switch-state" aria-hidden="true">Off</span>
+          </button>
+        </div>
+        <div class="row">
+          <div class="row-text">
+            <span class="row-label" id="l-panic">Panic dim</span>
+            <span class="row-help">Instantly dims the whole page. Press Alt+Shift+D on any page (press
+              again to undo), or flip this switch. Available even while Steady is off.</span>
+          </div>
+          <button id="panic-toggle" type="button" role="switch" aria-checked="false"
+                  aria-labelledby="l-panic" class="switch">
+            <span class="switch-track" aria-hidden="true"><span class="switch-thumb"></span></span>
+            <span class="switch-state" aria-hidden="true">Off</span>
           </button>
         </div>
       </div>
